@@ -1,0 +1,54 @@
+from django.contrib import admin
+from django.utils.safestring import mark_safe
+from django.utils.translation import gettext_lazy as _
+
+from common.utils.helpers import SAFE_SUBJECT_ICON
+from crm.utils.admfilters import ScrollRelatedOnlyFieldListFilter
+
+
+class CountryAdmin(admin.ModelAdmin):
+    class Media:
+        css = {
+            "all": ["css/flag-icons.css"],
+        }
+    fieldsets = (
+        (None, {'fields': [
+            'flag_preview', 'name', "alternative_names",
+            'subregion', 'intermediary_region',
+            'owner', 'notes'
+        ], }),
+        (_('Additional information'), {
+            'classes': ('collapse',),
+            'fields': ('currency', 'iso_code', 'phone_code', "url_name")
+        }),
+    )
+    list_display = ('flag_and_name', 'subregion',
+                    'currency', 'iso_code', 'phone_code', 'owner')
+    list_filter = (
+        ('owner', ScrollRelatedOnlyFieldListFilter),
+        'subregion', 'intermediary_region')
+    ordering = ["name"]
+    readonly_fields = ('flag_preview',)
+    search_fields = ('name', "alternative_names", 'iso_code', 'phone_code')
+
+    def get_search_results(self, request, queryset, search_term):
+        if search_term.isdigit():
+            return queryset.filter(phone_code__startswith=search_term), False
+        return super().get_search_results(request, queryset, search_term)
+
+    # -- ModelAdmin Callables -- #
+
+    @staticmethod
+    @admin.display(description=SAFE_SUBJECT_ICON)
+    def flag_and_name(obj):
+        return obj.flag_and_name
+
+    @admin.display(description='')
+    def flag_preview(self, obj):
+        if obj.iso_code:
+            return mark_safe(
+                f'<span class="fi fi-{obj.iso_code}" style="font-size: 200px;vertical-align: middle;"></span>'
+            )
+        return mark_safe(
+            f'<span class="fi fi-xx" style="font-size: 200px;vertical-align: middle;"></span>'
+        )

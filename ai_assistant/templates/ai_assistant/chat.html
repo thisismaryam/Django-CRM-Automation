@@ -1,0 +1,1072 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}AI Assistant | {{ site_title }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    #ai-chat-wrapper {
+        width: 100%;
+        max-width: 1100px;
+    }
+
+    #chat-box {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        height: 520px;
+        max-height: 68vh;
+        min-height: 360px;
+        overflow-y: auto;
+        padding: 20px;
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        background: var(--darkened-bg, #f8f8f8);
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .msg {
+        width: fit-content;
+        max-width: 85%;
+        padding: 12px 16px;
+        border-radius: 16px;
+        overflow-wrap: anywhere;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    .msg-user {
+        align-self: flex-end;
+        background: var(--primary, #417690);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+
+    .msg-ai {
+        align-self: flex-start;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+        border: 1px solid var(--border-color, #ddd);
+        border-bottom-left-radius: 4px;
+    }
+
+    .msg-error {
+        align-self: flex-start;
+        background: #fde8e8;
+        color: #c0392b;
+        border: 1px solid #c0392b;
+    }
+
+    .msg-typing {
+        align-self: flex-start;
+        background: var(--darkened-bg, #eee);
+        color: var(--body-quiet-color, #666);
+        font-style: italic;
+    }
+
+    .msg-ai p {
+        margin: 0 0 8px;
+    }
+
+    .msg-ai p:last-child {
+        margin-bottom: 0;
+    }
+
+    .msg-ai ul,
+    .msg-ai ol {
+        padding-left: 24px;
+    }
+
+    .msg-ai a {
+        color: var(--link-fg, var(--primary, #417690));
+    }
+
+    .chat-empty-state {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        min-height: 300px;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .chat-empty-state h2 {
+        margin: 0;
+        color: var(--body-fg, #333);
+        font-size: 22px;
+    }
+
+    .chat-empty-state p {
+        margin: 6px 0 0;
+        color: var(--body-quiet-color, #666);
+    }
+
+    .quick-prompts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+        width: min(100%, 760px);
+    }
+
+    .quick-prompt {
+        min-height: 48px;
+        padding: 10px 14px;
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 6px;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+        cursor: pointer;
+        text-align: left;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .quick-prompt:hover,
+    .quick-prompt:focus-visible {
+        border-color: var(--primary, #23949f);
+        box-shadow: 0 0 0 2px rgba(35, 148, 159, 0.18);
+        outline: none;
+    }
+
+    .approval-card {
+        align-self: stretch;
+        padding: 0;
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .approval-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid #e6ca73;
+        border-radius: 7px 7px 0 0;
+        background: #fff4cc;
+        color: #654d0b;
+    }
+
+    .approval-card-header .material-icons {
+        margin-top: 2px;
+        color: #9a6b00;
+    }
+
+    .approval-card-title {
+        margin: 0;
+        color: inherit;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .approval-card-subtitle {
+        margin: 2px 0 0;
+        color: #725d24;
+        font-size: 12px;
+    }
+
+    .approval-card-content {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px 18px;
+    }
+
+    .approval-section h4 {
+        margin: 0 0 8px;
+        color: var(--body-fg, #333);
+        font-size: 14px;
+    }
+
+    .approval-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+        margin: 0;
+    }
+
+    .approval-field {
+        min-width: 0;
+        padding: 9px 11px;
+        border: 1px solid var(--border-color, #e2e2e2);
+        border-radius: 5px;
+        background: var(--darkened-bg, #f8f8f8);
+    }
+
+    .approval-field dt {
+        margin-bottom: 2px;
+        color: var(--body-quiet-color, #666);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.035em;
+    }
+
+    .approval-field dd {
+        margin: 0;
+        color: var(--body-fg, #333);
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
+
+    .approval-warnings {
+        margin: 0;
+        padding: 10px 12px 10px 30px;
+        border-left: 3px solid #d5a500;
+        background: #fff9e6;
+        color: #654d0b;
+    }
+
+    .approval-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        padding: 12px 18px;
+        border-top: 1px solid var(--border-color, #ddd);
+    }
+
+    .approval-goal {
+        margin: 0;
+        color: var(--body-fg, #333);
+        font-weight: 600;
+    }
+
+    .operation-block {
+        padding: 12px 14px;
+        border: 1px solid var(--border-color, #ddd);
+        border-left: 4px solid var(--primary, #417690);
+        border-radius: 6px;
+        background: var(--body-bg, #fff);
+    }
+
+    .operation-block.op-update {
+        border-left-color: #d5a500;
+    }
+
+    .operation-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .operation-head h4 {
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .op-badge {
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: var(--darkened-bg, #eee);
+        color: var(--body-quiet-color, #666);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .op-note {
+        margin: 0 0 8px;
+        color: var(--body-quiet-color, #666);
+        font-size: 12px;
+    }
+
+    .approval-subtitle {
+        margin: 8px 0 4px;
+        color: var(--body-quiet-color, #666);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .change-from {
+        color: var(--body-quiet-color, #888);
+        text-decoration: line-through;
+    }
+
+    .result-list {
+        margin: 6px 0 0;
+        padding-left: 20px;
+    }
+
+    .result-ok {
+        color: #1e7e34;
+    }
+
+    .result-fail {
+        color: #c0392b;
+    }
+
+    .approval-status {
+        padding: 10px 18px;
+        border-top: 1px solid var(--border-color, #ddd);
+        color: var(--body-quiet-color, #666);
+        font-style: italic;
+    }
+
+    #chat-input-row {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+        margin-top: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border-color, #aaa);
+        border-radius: 5px;
+        background: var(--body-bg, #fff);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    #chat-input {
+        flex: 1;
+        min-width: 0;
+        padding: 11px 14px;
+        border: 0;
+        border-radius: 0;
+        font-size: 14px;
+        background: var(--body-bg, #fff);
+        color: var(--body-fg, #333);
+    }
+
+    #chat-input:focus {
+        outline: 2px solid var(--primary, #23949f);
+        outline-offset: -2px;
+        box-shadow: none;
+    }
+
+    .file-upload-trigger {
+        display: flex;
+        flex: 0 0 44px;
+        align-items: center;
+        justify-content: center;
+        border-right: 1px solid var(--border-color, #ddd);
+        color: var(--body-quiet-color, #666);
+        cursor: pointer;
+    }
+
+    .file-upload-trigger:hover,
+    .file-upload-trigger:focus-within {
+        color: var(--primary, #23949f);
+        background: var(--darkened-bg, #f8f8f8);
+    }
+
+    .btn-send {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: 100px;
+        padding: 10px 18px;
+        border: 0;
+        border-radius: 0;
+        background: var(--primary, #23949f);
+        color: #fff;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .btn-send:hover {
+        background: var(--button-hover-bg, #205067);
+    }
+
+    .btn-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-approve {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 9px 16px;
+        border: 0;
+        border-radius: 4px;
+        background: #28a745;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 700;
+    }
+
+    .btn-approve:hover {
+        background: #218838;
+    }
+
+    .btn-approve:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-reject {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 9px 16px;
+        border: 0;
+        border-radius: 4px;
+        background: #dc3545;
+        color: #fff;
+        cursor: pointer;
+    }
+
+    .btn-reject:hover {
+        background: #c82333;
+    }
+
+    .btn-reject:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    #file-attachment-status {
+        display: none;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding: 9px 12px;
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 5px;
+        background: var(--darkened-bg, #f8f8f8);
+        color: var(--body-fg, #333);
+        font-size: 13px;
+    }
+
+    .file-clear-button {
+        border: 0;
+        background: transparent;
+        color: #b32d2e;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    @media (max-width: 600px) {
+        #chat-box {
+            height: 60vh;
+            min-height: 320px;
+            padding: 12px;
+        }
+
+        .msg {
+            max-width: 94%;
+        }
+
+        .chat-empty-state {
+            padding: 12px 4px;
+        }
+
+        .quick-prompts {
+            grid-template-columns: 1fr;
+        }
+
+        .approval-card-content {
+            padding: 12px;
+        }
+
+        .approval-actions {
+            padding: 10px 12px;
+        }
+
+        #chat-input-row {
+            margin-top: 8px;
+        }
+
+        .btn-send {
+            min-width: 46px;
+            padding: 10px 12px;
+        }
+
+        .btn-send .send-label {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; {% trans 'AI Assistant' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="ai-chat-wrapper">
+    <div id="content-main">
+        <div id="chat-box" aria-live="polite" aria-label="Chat history">
+            <div id="chat-empty-state" class="chat-empty-state">
+                <div>
+                    <h2>{% trans "How can I help with your CRM?" %}</h2>
+                    <p>{% trans "Choose a suggestion or ask your own question." %}</p>
+                </div>
+                <div class="quick-prompts">
+                    <button type="button" class="quick-prompt"
+                        onclick="sendQuickPrompt('Give me a sales summary for the last 30 days')">
+                        {% trans "Give me a sales summary for the last 30 days" %}
+                    </button>
+                    <button type="button" class="quick-prompt"
+                        onclick="sendQuickPrompt('Which of my deals have overdue next steps?')">
+                        {% trans "Which of my deals have overdue next steps?" %}
+                    </button>
+                    <button type="button" class="quick-prompt"
+                        onclick="sendQuickPrompt('Add a new prospect and register the opportunity they discussed with us')">
+                        {% trans "Add a new prospect and register their opportunity" %}
+                    </button>
+                    <button type="button" class="quick-prompt"
+                        onclick="sendQuickPrompt('What fields does a deal have and how is it linked to a request?')">
+                        {% trans "How is a deal linked to a request?" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Attachment Status Bar -->
+        <div id="file-attachment-status">
+            <span>📎 <strong id="file-name-text"></strong></span>
+            <button type="button" class="file-clear-button" onclick="clearFile()"
+                aria-label="{% trans 'Remove attached file' %}">✖</button>
+        </div>
+
+        <div id="chat-input-row">
+            <!-- File Upload Button -->
+            <label for="file-upload" class="file-upload-trigger"
+                title="{% trans 'Attach a document' %}"
+                aria-label="{% trans 'Attach a document' %}">
+                <i class="material-icons" aria-hidden="true">attach_file</i>
+            </label>
+            <input id="file-upload" type="file" accept=".pdf,.docx,.txt" style="display: none;"
+                onchange="updateFileName()" />
+
+            <input type="text" id="chat-input"
+                placeholder="{% trans 'Ask about your sales data or describe the work to do' %}"
+                autocomplete="off"
+                onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }">
+
+            <button id="send-btn" class="btn-send" onclick="sendMessage()">
+                <i class="material-icons" style="font-size:18px;">send</i>
+                <span class="send-label">{% trans 'Send' %}</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentThreadId = null;
+
+    function sendQuickPrompt(prompt) {
+        const input = document.getElementById('chat-input');
+        input.value = prompt;
+        sendMessage();
+    }
+
+    function updateFileName() {
+        const fileInput = document.getElementById('file-upload');
+        const statusDiv = document.getElementById('file-attachment-status');
+        const nameText = document.getElementById('file-name-text');
+
+        if (fileInput.files.length > 0) {
+            nameText.textContent = fileInput.files[0].name;
+            statusDiv.style.display = 'flex';
+        } else {
+            statusDiv.style.display = 'none';
+            nameText.textContent = '';
+        }
+    }
+
+    function clearFile() {
+        const fileInput = document.getElementById('file-upload');
+        fileInput.value = '';
+        updateFileName();
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(String(text)));
+        return d.innerHTML;
+    }
+
+    function appendInlineMarkdown(parent, text) {
+        const tokenPattern = /<a\s+href=(["'])([^"'<>]+)\1[^>]*>(.*?)<\/a>|\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)]+)\)/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = tokenPattern.exec(text)) !== null) {
+            parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+
+            const isHtmlLink = match[2] !== undefined;
+            const isBold = match[4] !== undefined;
+            if (isBold) {
+                const strong = document.createElement('strong');
+                strong.textContent = match[4];
+                parent.appendChild(strong);
+            } else {
+                const label = isHtmlLink ? match[3] : match[5];
+                const href = isHtmlLink ? match[2] : match[6];
+                let parsedHref;
+                try {
+                    parsedHref = new URL(href, window.location.href);
+                } catch {
+                    parsedHref = null;
+                }
+
+                if (parsedHref && ['http:', 'https:'].includes(parsedHref.protocol)) {
+                    const link = document.createElement('a');
+                    link.href = parsedHref.href;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = label;
+                    parent.appendChild(link);
+                } else {
+                    parent.appendChild(document.createTextNode(match[0]));
+                }
+            }
+
+            lastIndex = tokenPattern.lastIndex;
+        }
+
+        parent.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+
+    function renderMarkdown(parent, text) {
+        let paragraph = [];
+        let list = null;
+
+        function flushParagraph() {
+            if (!paragraph.length) return;
+            const element = document.createElement('p');
+            paragraph.forEach((line, index) => {
+                if (index) element.appendChild(document.createElement('br'));
+                appendInlineMarkdown(element, line);
+            });
+            parent.appendChild(element);
+            paragraph = [];
+        }
+
+        function flushList() {
+            list = null;
+        }
+
+        String(text).split(/\r?\n/).forEach(line => {
+            const listItem = line.match(/^\s*(?:([-*+])|(\d+)\.)\s+(.+)$/);
+            if (listItem) {
+                flushParagraph();
+                const listTag = listItem[2] ? 'ol' : 'ul';
+                if (!list || list.tagName.toLowerCase() !== listTag) {
+                    list = document.createElement(listTag);
+                    parent.appendChild(list);
+                }
+                const item = document.createElement('li');
+                appendInlineMarkdown(item, listItem[3]);
+                list.appendChild(item);
+            } else if (line.trim()) {
+                flushList();
+                paragraph.push(line);
+            } else {
+                flushParagraph();
+                flushList();
+            }
+        });
+
+        flushParagraph();
+    }
+
+    function appendMessage(role, content) {
+        const box = document.getElementById('chat-box');
+        const emptyState = document.getElementById('chat-empty-state');
+        if (emptyState) emptyState.remove();
+
+        const div = document.createElement('div');
+        div.className = 'msg msg-' + role;
+        if (role === 'user') {
+            div.innerHTML = '<strong>You:</strong> ' + escapeHtml(content);
+        } else if (role === 'error') {
+            div.innerHTML = '<i class="material-icons" style="font-size:16px;vertical-align:middle;">error_outline</i> ' + escapeHtml(content);
+        } else {
+            const heading = document.createElement('strong');
+            heading.textContent = 'AI:';
+            div.appendChild(heading);
+            renderMarkdown(div, content);
+        }
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function showTyping() {
+        const box = document.getElementById('chat-box');
+        const div = document.createElement('div');
+        div.className = 'msg msg-typing';
+        div.id = 'typing-indicator';
+        div.innerHTML = '<i class="material-icons" style="font-size:16px;vertical-align:middle;">more_horiz</i> AI is thinking…';
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function removeTyping() {
+        const el = document.getElementById('typing-indicator');
+        if (el) el.remove();
+    }
+
+    function getCookie(name) {
+        const cookie = document.cookie
+            .split('; ')
+            .find(item => item.startsWith(name + '='));
+        return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
+    }
+
+    function approvalValueText(value) {
+        if (value === null || value === undefined || value === '') {
+            return 'Not provided';
+        }
+        if (typeof value === 'boolean') {
+            return value ? 'Yes' : 'No';
+        }
+        if (Array.isArray(value)) {
+            return value.length
+                ? value.map(approvalValueText).join(', ')
+                : 'Not provided';
+        }
+        if (typeof value === 'object') {
+            const label = value.full_name || value.name || value.value;
+            if (label !== undefined && label !== null) {
+                return approvalValueText(label);
+            }
+            return Object.entries(value)
+                .map(([key, item]) =>
+                    `${approvalLabel(key)}: ${approvalValueText(item)}`)
+                .join(', ');
+        }
+        return String(value);
+    }
+
+    function approvalLabel(key) {
+        return key
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, character => character.toUpperCase());
+    }
+
+    function appendEntries(parent, title, entries) {
+        const rows = entries.filter(([, value]) =>
+            value !== null && value !== undefined && value !== '');
+        if (!rows.length) return;
+        if (title) {
+            const subtitle = document.createElement('div');
+            subtitle.className = 'approval-subtitle';
+            subtitle.textContent = title;
+            parent.appendChild(subtitle);
+        }
+        const grid = document.createElement('dl');
+        grid.className = 'approval-grid';
+        rows.forEach(([label, value]) => {
+            const field = document.createElement('div');
+            field.className = 'approval-field';
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            if (value && typeof value === 'object' && 'from' in value && 'to' in value) {
+                const from = document.createElement('span');
+                from.className = 'change-from';
+                from.textContent = approvalValueText(value.from);
+                description.appendChild(from);
+                description.appendChild(document.createTextNode(' → ' + approvalValueText(value.to)));
+            } else {
+                description.textContent = approvalValueText(value);
+            }
+            field.appendChild(term);
+            field.appendChild(description);
+            grid.appendChild(field);
+        });
+        parent.appendChild(grid);
+    }
+
+    function appendWarnings(parent, warnings) {
+        if (!Array.isArray(warnings) || !warnings.length) return;
+        const list = document.createElement('ul');
+        list.className = 'approval-warnings';
+        warnings.forEach(warning => {
+            const item = document.createElement('li');
+            item.textContent = approvalValueText(warning);
+            list.appendChild(item);
+        });
+        parent.appendChild(list);
+    }
+
+    function renderOperation(parent, op) {
+        const block = document.createElement('div');
+        block.className = 'operation-block' + (op.action === 'update' ? ' op-update' : '');
+
+        const head = document.createElement('div');
+        head.className = 'operation-head';
+        const badge = document.createElement('span');
+        badge.className = 'op-badge';
+        badge.textContent = op.op_id;
+        const title = document.createElement('h4');
+        title.textContent = op.title || (op.action + ' ' + op.record_type);
+        head.appendChild(badge);
+        head.appendChild(title);
+        block.appendChild(head);
+
+        if (op.note) {
+            const note = document.createElement('p');
+            note.className = 'op-note';
+            note.textContent = op.note;
+            block.appendChild(note);
+        }
+        if (op.existing_record) {
+            appendEntries(block, '', [['Existing record', op.existing_record]]);
+        }
+        appendEntries(block, 'Values', Object.entries(op.fields || {}));
+        appendEntries(block, 'Changes', Object.entries(op.changes || {}));
+        appendEntries(block, 'Related records', Object.entries(op.related || {}));
+        appendEntries(block, 'Filled in automatically', Object.entries(op.inferred || {}));
+        appendWarnings(block, op.warnings);
+        parent.appendChild(block);
+    }
+
+    function renderApprovalCard(payload) {
+        const box = document.getElementById('chat-box');
+        const card = document.createElement('div');
+        card.className = 'approval-card';
+        card.dataset.operationId = payload.operation_id || '';
+
+        const header = document.createElement('div');
+        header.className = 'approval-card-header';
+        const headerIcon = document.createElement('i');
+        headerIcon.className = 'material-icons';
+        headerIcon.setAttribute('aria-hidden', 'true');
+        headerIcon.textContent = 'fact_check';
+        const headerText = document.createElement('div');
+        const title = document.createElement('h3');
+        title.className = 'approval-card-title';
+        title.textContent = 'Review CRM changes';
+        const subtitle = document.createElement('p');
+        subtitle.className = 'approval-card-subtitle';
+        const operations = Array.isArray(payload.operations) ? payload.operations : [];
+        const count = operations.length;
+        subtitle.textContent = count
+            ? count + (count > 1 ? ' operations' : ' operation')
+                + ' · nothing is saved until you approve · all or nothing'
+            : (payload.record_type || payload.action || '');
+        headerText.appendChild(title);
+        headerText.appendChild(subtitle);
+        header.appendChild(headerIcon);
+        header.appendChild(headerText);
+        card.appendChild(header);
+
+        const content = document.createElement('div');
+        content.className = 'approval-card-content';
+        if (payload.goal) {
+            const goal = document.createElement('p');
+            goal.className = 'approval-goal';
+            goal.textContent = 'Goal: ' + payload.goal;
+            content.appendChild(goal);
+        }
+        operations.forEach(op => renderOperation(content, op));
+        appendWarnings(content, payload.warnings);
+        card.appendChild(content);
+
+        const actions = document.createElement('div');
+        actions.className = 'approval-actions';
+        [
+            ['Approve all', 'check_circle', 'btn-approve', 'approved'],
+            ['Reject', 'cancel', 'btn-reject', 'rejected'],
+        ].forEach(([label, iconName, className, decision]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = className;
+            const icon = document.createElement('i');
+            icon.className = 'material-icons';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = iconName;
+            const buttonLabel = document.createElement('span');
+            buttonLabel.textContent = label;
+            button.appendChild(icon);
+            button.appendChild(buttonLabel);
+            button.addEventListener('click', () =>
+                handleDecision(decision, card, payload.operation_id));
+            actions.appendChild(button);
+        });
+        card.appendChild(actions);
+
+        box.appendChild(card);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function markCardDone(card, text) {
+        card.querySelectorAll('button').forEach(b => b.disabled = true);
+        const actions = card.querySelector('.approval-actions');
+        if (actions) actions.remove();
+        const status = document.createElement('div');
+        status.className = 'approval-status';
+        status.textContent = text;
+        card.appendChild(status);
+    }
+
+    function closeOpenCards(text) {
+        document.querySelectorAll('.approval-card').forEach(card => {
+            if (card.querySelector('.approval-actions')) markCardDone(card, text);
+        });
+    }
+
+    function renderExecution(execution) {
+        if (!execution || !Array.isArray(execution.results) || !execution.results.length) return;
+        const box = document.getElementById('chat-box');
+        const div = document.createElement('div');
+        div.className = 'msg msg-ai';
+        const heading = document.createElement('strong');
+        heading.textContent = execution.status === 'success' ? 'Workflow results' : 'Workflow not saved';
+        div.appendChild(heading);
+        const list = document.createElement('ul');
+        list.className = 'result-list';
+        execution.results.forEach(item => {
+            const li = document.createElement('li');
+            const ok = item.status === 'success';
+            li.className = ok ? 'result-ok' : 'result-fail';
+            const label = ok
+                ? item.op_id + ': ' + item.action + ' ' + item.record_type
+                    + ' #' + item.record_id + ' ' + item.label
+                : item.op_id + ': ' + item.title + ' (' + item.status + ')';
+            if (ok && item.url) {
+                const link = document.createElement('a');
+                link.href = item.url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = label;
+                li.appendChild(link);
+            } else {
+                li.textContent = label;
+            }
+            if (ok && item.deal) {
+                li.appendChild(document.createTextNode(
+                    ' → Deal #' + item.deal.record_id + ' ' + item.deal.label));
+            }
+            list.appendChild(li);
+        });
+        div.appendChild(list);
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const fileInput = document.getElementById('file-upload');
+
+        const message = input.value.trim();
+        const file = fileInput.files[0];
+
+        if (!message && !file) return;
+
+        if (file) {
+            appendMessage('user', (message || '') + '\n[Attached File: ' + file.name + ']');
+        } else {
+            appendMessage('user', message);
+        }
+
+        input.value = '';
+        clearFile();
+
+        // The server cancels a plan still waiting for a decision when a new
+        // message arrives; reflect that on any open card.
+        closeOpenCards('Not approved: you sent a new message, so this plan was cancelled.');
+
+        sendBtn.disabled = true;
+        showTyping();
+
+        try {
+            const formData = new FormData();
+            formData.append("message", message);
+            if (file) {
+                formData.append("file", file);
+            }
+            if (currentThreadId) {
+                formData.append("thread_id", currentThreadId);
+            }
+
+            const response = await fetch('/api/ai/chat/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+
+            removeTyping();
+            const data = await response.json();
+
+            if (!response.ok) {
+                appendMessage('error', data.message || data.detail || 'Server error (' + response.status + ')');
+                return;
+            }
+
+            if (data.thread_id) currentThreadId = data.thread_id;
+
+            if (data.status === 'pending_approval') {
+                renderApprovalCard(data.payload);
+            } else {
+                appendMessage('ai', data.message || data.detail || '(No response)');
+            }
+        } catch (err) {
+            removeTyping();
+            appendMessage('error', 'Network error: ' + err.message);
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    async function handleDecision(decision, cardElement, operationId) {
+        const buttons = cardElement.querySelectorAll('button');
+        buttons.forEach(b => b.disabled = true);
+        cardElement.style.opacity = '0.75';
+        showTyping();
+
+        try {
+            const response = await fetch('/api/ai/approve/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    thread_id: currentThreadId,
+                    decision: decision,
+                    operation_id: operationId
+                })
+            });
+            removeTyping();
+            const data = await response.json();
+            cardElement.style.opacity = '1';
+            if (data.thread_id) currentThreadId = data.thread_id;
+            if (!response.ok) {
+                markCardDone(cardElement, 'No decision recorded.');
+                appendMessage('error', data.message || data.detail || 'Request failed.');
+                if (data.payload) renderApprovalCard(data.payload);
+                return;
+            }
+            if (data.status === 'pending_approval') {
+                markCardDone(cardElement, decision === 'approved' ? 'Approved.' : 'Rejected.');
+                renderApprovalCard(data.payload);
+                return;
+            }
+            const execution = data.execution || {};
+            let statusText = decision === 'approved' ? 'Approved.' : 'Rejected. Nothing was saved.';
+            if (execution.status === 'success') statusText = 'Approved and saved.';
+            if (execution.status === 'failed') statusText = 'Approved, but the workflow failed. Nothing was saved.';
+            markCardDone(cardElement, statusText);
+            renderExecution(execution);
+            appendMessage('ai', data.message || data.detail || 'Done.');
+        } catch (err) {
+            removeTyping();
+            cardElement.style.opacity = '1';
+            buttons.forEach(b => b.disabled = false);
+            appendMessage('error', 'Approval error: ' + err.message);
+        }
+    }
+</script>
+{% endblock %}

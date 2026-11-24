@@ -1,0 +1,29 @@
+[
+{
+    "model": "common.department",
+    "pk": 9,
+    "fields": {
+        "name": "Global sales",
+        "default_currency": 1,
+        "works_globally": true
+    }
+},
+{
+    "model": "common.department",
+    "pk": 10,
+    "fields": {
+        "name": "Local sales",
+        "default_country": 190,
+        "default_currency": 1,
+        "works_globally": false
+    }
+},
+{
+    "model": "common.department",
+    "pk": 11,
+    "fields": {
+        "name": "Bookkeeping",
+        "works_globally": false
+    }
+}
+]

@@ -1,0 +1,4797 @@
+{
+    "ContinentalRegion": {
+        "model": "ContinentalRegion",
+        "app_label": "crm",
+        "model_label": "crm.ContinentalRegion",
+        "verbose_name": "Continental region",
+        "proxy": false,
+        "concrete_model": "ContinentalRegion",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [],
+        "reverse_relationships": [
+            {
+                "related_model": "SubRegion",
+                "related_model_label": "crm.SubRegion",
+                "field": "continental_region",
+                "accessor_name": "subregion_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "ContinentalRegion (Continental region) is a CRM model.  Fields: name. Relationships: . Referenced by: SubRegion."
+    },
+    "SubRegion": {
+        "model": "SubRegion",
+        "app_label": "crm",
+        "model_label": "crm.SubRegion",
+        "verbose_name": "Subregion",
+        "proxy": false,
+        "concrete_model": "SubRegion",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "continental_region",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "continental_region",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "ContinentalRegion",
+                "related_model_label": "crm.ContinentalRegion",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "IntermediaryRegion",
+                "related_model_label": "crm.IntermediaryRegion",
+                "field": "subregion",
+                "accessor_name": "intermediaryregion_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "field": "subregion",
+                "accessor_name": "country_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "SubRegion (Subregion) is a CRM model.  Fields: name, continental_region. Relationships: continental_region links to ContinentalRegion. Referenced by: Country, IntermediaryRegion."
+    },
+    "IntermediaryRegion": {
+        "model": "IntermediaryRegion",
+        "app_label": "crm",
+        "model_label": "crm.IntermediaryRegion",
+        "verbose_name": "Intermediary region",
+        "proxy": false,
+        "concrete_model": "IntermediaryRegion",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "subregion",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "subregion",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "SubRegion",
+                "related_model_label": "crm.SubRegion",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "field": "intermediary_region",
+                "accessor_name": "country_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "IntermediaryRegion (Intermediary region) is a CRM model.  Fields: name, subregion. Relationships: subregion links to SubRegion. Referenced by: Country."
+    },
+    "Country": {
+        "model": "Country",
+        "app_label": "crm",
+        "model_label": "crm.Country",
+        "verbose_name": "Country",
+        "proxy": false,
+        "concrete_model": "Country",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "alternative_names",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "url_name",
+                "verbose_name": "",
+                "type": "SlugField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "subregion",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "intermediary_region",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "iso_code",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "phone_code",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "notes",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "subregion",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "SubRegion",
+                "related_model_label": "crm.SubRegion",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "intermediary_region",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "IntermediaryRegion",
+                "related_model_label": "crm.IntermediaryRegion",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_country_owner_related",
+                "on_delete": "SET_NULL"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "field": "country",
+                "accessor_name": "city_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "country",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "field": "country",
+                "accessor_name": "contact_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "country",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "country",
+                "accessor_name": "company_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "country",
+                "accessor_name": "request_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Country (Country) is a CRM model. A country; leads, contacts and companies reference it. Fields: name, alternative_names, url_name, subregion, intermediary_region, owner, iso_code, phone_code, currency, notes. Relationships: subregion links to SubRegion, intermediary_region links to IntermediaryRegion, owner links to User. Referenced by: City, Company, Contact, Deal, Lead, Request."
+    },
+    "City": {
+        "model": "City",
+        "app_label": "crm",
+        "model_label": "crm.City",
+        "verbose_name": "City",
+        "proxy": false,
+        "concrete_model": "City",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "alternative_names",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "city",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "field": "city",
+                "accessor_name": "contact_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "city",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "city",
+                "accessor_name": "company_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "city",
+                "accessor_name": "request_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "City (City) is a CRM model. A city belonging to a country. Fields: name, alternative_names, country. Relationships: country links to Country. Referenced by: Company, Contact, Deal, Lead, Request."
+    },
+    "ClientType": {
+        "model": "ClientType",
+        "app_label": "crm",
+        "model_label": "crm.ClientType",
+        "verbose_name": "Type of Clients",
+        "proxy": false,
+        "concrete_model": "ClientType",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "type",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "tier_name",
+                "accessor_name": "crm_deal_tier_name_related",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "type",
+                "accessor_name": "company_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CategoryPriceRule",
+                "related_model_label": "crm.CategoryPriceRule",
+                "field": "tier_name",
+                "accessor_name": "crm_categorypricerule_tier_name_related",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "DepartmentPriceRule",
+                "related_model_label": "crm.DepartmentPriceRule",
+                "field": "tier_name",
+                "accessor_name": "crm_departmentpricerule_tier_name_related",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "ProductPriceTier",
+                "related_model_label": "crm.ProductPriceTier",
+                "field": "tier_name",
+                "accessor_name": "crm_productpricetier_tier_name_related",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "ClientType (Type of Clients) is a CRM model. The type of a company, such as customer or partner. Fields: name, department. Relationships: department links to Group. Referenced by: CategoryPriceRule, Company, Deal, DepartmentPriceRule, Lead, ProductPriceTier."
+    },
+    "Industry": {
+        "model": "Industry",
+        "app_label": "crm",
+        "model_label": "crm.Industry",
+        "verbose_name": "Industry of Clients",
+        "proxy": false,
+        "concrete_model": "Industry",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "industry",
+                "accessor_name": "lead_set",
+                "type": "ManyToMany"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "industry",
+                "accessor_name": "company_set",
+                "type": "ManyToMany"
+            }
+        ],
+        "description": "Industry (Industry of Clients) is a CRM model. The industry or business sector of a company. Fields: name, department. Relationships: department links to Group. Referenced by: Company, Lead."
+    },
+    "Stage": {
+        "model": "Stage",
+        "app_label": "crm",
+        "model_label": "crm.Stage",
+        "verbose_name": "Stage",
+        "proxy": false,
+        "concrete_model": "Stage",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "default",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "index_number",
+                "verbose_name": "",
+                "type": "SmallIntegerField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "second_default",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "success_stage",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "conditional_success_stage",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "goods_shipped",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": true,
+                "related_name": "crm_stage_department_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "stage",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Stage (Stage) is a CRM model. A stage in the sales pipeline that a deal moves through. Fields: name, department, default, index_number, second_default, success_stage, conditional_success_stage, goods_shipped. Relationships: department links to Group. Referenced by: Deal."
+    },
+    "LeadSource": {
+        "model": "LeadSource",
+        "app_label": "crm",
+        "model_label": "crm.LeadSource",
+        "verbose_name": "Lead Source",
+        "proxy": false,
+        "concrete_model": "LeadSource",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "uuid",
+                "verbose_name": "",
+                "type": "UUIDField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "form_template",
+                "verbose_name": "form template name",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "success_template",
+                "verbose_name": "success page template name",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Department",
+                "related_model_label": "common.Department",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "lead_source",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "field": "lead_source",
+                "accessor_name": "contact_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "lead_source",
+                "accessor_name": "company_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "lead_source",
+                "accessor_name": "request_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "LeadSource (Lead Source) is a CRM model. Where a lead came from, for example referral, website or exhibition. Fields: name, department, email, uuid, form_template (form template name), success_template (success page template name). Relationships: department links to Department. Referenced by: Company, Contact, Lead, Request."
+    },
+    "ClosingReason": {
+        "model": "ClosingReason",
+        "app_label": "crm",
+        "model_label": "crm.ClosingReason",
+        "verbose_name": "Closing reason",
+        "proxy": false,
+        "concrete_model": "ClosingReason",
+        "fields": [
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "index_number",
+                "verbose_name": "",
+                "type": "SmallIntegerField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "success_reason",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "closing_reason",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "ClosingReason (Closing reason) is a CRM model.  Fields: department, name, index_number, success_reason. Relationships: department links to Group. Referenced by: Deal."
+    },
+    "Currency": {
+        "model": "Currency",
+        "app_label": "crm",
+        "model_label": "crm.Currency",
+        "verbose_name": "Currency",
+        "proxy": false,
+        "concrete_model": "Currency",
+        "fields": [
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "rate_to_state_currency",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "rate_to_marketing_currency",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "is_state_currency",
+                "verbose_name": "Is it the state currency?",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "is_marketing_currency",
+                "verbose_name": "Is it the marketing currency?",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "auto_update",
+                "verbose_name": "This currency is subject to automatic updating.",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [],
+        "reverse_relationships": [
+            {
+                "related_model": "Payment",
+                "related_model_label": "crm.Payment",
+                "field": "currency",
+                "accessor_name": "payment_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Rate",
+                "related_model_label": "crm.Rate",
+                "field": "currency",
+                "accessor_name": "crm_rate_related",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "currency",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Product",
+                "related_model_label": "crm.Product",
+                "field": "currency",
+                "accessor_name": "product_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Output",
+                "related_model_label": "crm.Output",
+                "field": "currency",
+                "accessor_name": "output_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Currency (Currency) is a CRM model.  Fields: name, rate_to_state_currency, rate_to_marketing_currency, is_state_currency (Is it the state currency?), is_marketing_currency (Is it the marketing currency?), auto_update (This currency is subject to automatic updating.). Relationships: . Referenced by: Deal, Output, Payment, Product, Rate."
+    },
+    "Payment": {
+        "model": "Payment",
+        "app_label": "crm",
+        "model_label": "crm.Payment",
+        "verbose_name": "Payment",
+        "proxy": false,
+        "concrete_model": "Payment",
+        "fields": [
+            {
+                "name": "amount",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "payment_date",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "status",
+                "verbose_name": "Payment status",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "contract_number",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "invoice_number",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "order_number",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "through_representation",
+                "verbose_name": "Payment through representative office",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Currency",
+                "related_model_label": "crm.Currency",
+                "required_for_input": true,
+                "on_delete": "DO_NOTHING"
+            },
+            {
+                "field": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "Payment (Payment) is a CRM model. A payment or expected payment (revenue) for a deal: amount, currency, date, status received/guaranteed/probable, invoice and contract numbers. Fields: amount, currency, deal, payment_date, status (Payment status), contract_number, invoice_number, order_number, through_representation (Payment through representative office). Relationships: currency links to Currency, deal links to Deal. Referenced by: ."
+    },
+    "Rate": {
+        "model": "Rate",
+        "app_label": "crm",
+        "model_label": "crm.Rate",
+        "verbose_name": "Currency rate",
+        "proxy": false,
+        "concrete_model": "Rate",
+        "fields": [
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "payment_date",
+                "verbose_name": "Currency rate date",
+                "type": "DateField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "rate_to_state_currency",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "rate_to_marketing_currency",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "rate_type",
+                "verbose_name": "Exchange rate type",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Currency",
+                "related_model_label": "crm.Currency",
+                "required_for_input": true,
+                "related_name": "crm_rate_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "Rate (Currency rate) is a CRM model.  Fields: currency, payment_date (Currency rate date), rate_to_state_currency, rate_to_marketing_currency, rate_type (Exchange rate type). Relationships: currency links to Currency. Referenced by: ."
+    },
+    "Lead": {
+        "model": "Lead",
+        "app_label": "crm",
+        "model_label": "crm.Lead",
+        "verbose_name": "Lead",
+        "proxy": false,
+        "concrete_model": "Lead",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "first_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "middle_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "last_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "title",
+                "verbose_name": "Title / Position",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "sex",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "birth_date",
+                "verbose_name": "Date of Birth",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "secondary_email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "other_phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "mobile",
+                "verbose_name": "Mobile phone",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city_name",
+                "verbose_name": "City",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city",
+                "verbose_name": "Company city",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "avatar",
+                "verbose_name": "",
+                "type": "FileField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "address",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "region",
+                "verbose_name": "Region/State",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "district",
+                "verbose_name": "District/County",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "massmail",
+                "verbose_name": "Mass mailing",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "token",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "was_in_touch",
+                "verbose_name": "Last contact date",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "disqualified",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "company_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "website",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "company_phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "company_address",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "company_email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "type",
+                "verbose_name": "Type of company",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "tags",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "industry",
+                "verbose_name": "Industry of company",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_lead_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_lead_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "city",
+                "verbose_name": "Company city",
+                "type": "ForeignKey",
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "LeadSource",
+                "related_model_label": "crm.LeadSource",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_lead_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "type",
+                "verbose_name": "Type of company",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "tags",
+                "verbose_name": "",
+                "type": "ManyToMany",
+                "related_model": "Tag",
+                "related_model_label": "crm.Tag",
+                "required_for_input": false
+            },
+            {
+                "field": "industry",
+                "verbose_name": "Industry of company",
+                "type": "ManyToMany",
+                "related_model": "Industry",
+                "related_model_label": "crm.Industry",
+                "required_for_input": false
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "lead",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CrmEmail",
+                "related_model_label": "crm.CrmEmail",
+                "field": "lead",
+                "accessor_name": "lead_emails",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "lead",
+                "accessor_name": "request_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Lead (Lead) is a CRM model. A sales lead (prospect): a potential customer who has not yet been converted into a Contact and Company. Stores the person's name, email and phone, their company details, lead source, owner and tags. Fields: department, first_name, middle_name, last_name, title (Title / Position), sex, birth_date (Date of Birth), secondary_email, phone, other_phone, mobile (Mobile phone), city_name (City), city (Company city), country, address, region (Region/State), district (District/County), description, email, lead_source, massmail (Mass mailing), was_in_touch (Last contact date), owner (Assigned to), disqualified, company_name, website, company_phone, company_address, company_email, type (Type of company), contact, company (Company of contact), tags, industry (Industry of company). Relationships: department links to Group, city links to City, country links to Country, lead_source links to LeadSource, owner links to User, type links to ClientType, contact links to Contact, company links to Company, tags links to Tag, industry links to Industry. Referenced by: CrmEmail, Deal, Request."
+    },
+    "Contact": {
+        "model": "Contact",
+        "app_label": "crm",
+        "model_label": "crm.Contact",
+        "verbose_name": "Contact person",
+        "proxy": false,
+        "concrete_model": "Contact",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "first_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "middle_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "last_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "title",
+                "verbose_name": "Title / Position",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "sex",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "birth_date",
+                "verbose_name": "Date of Birth",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "secondary_email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "other_phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "mobile",
+                "verbose_name": "Mobile phone",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city_name",
+                "verbose_name": "City",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city",
+                "verbose_name": "Company city",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "avatar",
+                "verbose_name": "",
+                "type": "FileField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "address",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "region",
+                "verbose_name": "Region/State",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "district",
+                "verbose_name": "District/County",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "disqualified",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "massmail",
+                "verbose_name": "Mass mailing",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "token",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "was_in_touch",
+                "verbose_name": "Last contact date",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "tags",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_contact_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_contact_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "city",
+                "verbose_name": "Company city",
+                "type": "ForeignKey",
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "LeadSource",
+                "related_model_label": "crm.LeadSource",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_contact_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "required_for_input": true,
+                "related_name": "contacts",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "tags",
+                "verbose_name": "",
+                "type": "ManyToMany",
+                "related_model": "Tag",
+                "related_model_label": "crm.Tag",
+                "required_for_input": false
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "contact",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "contact",
+                "accessor_name": "deal_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "partner_contact",
+                "accessor_name": "partner_contacts",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CrmEmail",
+                "related_model_label": "crm.CrmEmail",
+                "field": "contact",
+                "accessor_name": "contact_emails",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "contact",
+                "accessor_name": "request_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Contact (Contact person) is a CRM model. A contact person who works for a Company: a known customer or client contact. Always belongs to a company. Fields: department, first_name, middle_name, last_name, title (Title / Position), sex, birth_date (Date of Birth), secondary_email, phone, other_phone, mobile (Mobile phone), city_name (City), city (Company city), country, address, region (Region/State), district (District/County), description, disqualified, email, lead_source, massmail (Mass mailing), was_in_touch (Last contact date), owner (Assigned to), company (Company of contact), tags. Relationships: department links to Group, city links to City, country links to Country, lead_source links to LeadSource, owner links to User, company links to Company, tags links to Tag. Referenced by: CrmEmail, Deal, Lead, Request."
+    },
+    "Deal": {
+        "model": "Deal",
+        "app_label": "crm",
+        "model_label": "crm.Deal",
+        "verbose_name": "Deal",
+        "proxy": false,
+        "concrete_model": "Deal",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "next_step",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "next_step_date",
+                "verbose_name": "Step date",
+                "type": "DateField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "workflow",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "stage",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "stages_dates",
+                "verbose_name": "Dates of the stages",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "closing_date",
+                "verbose_name": "Date of deal closing",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "win_closing_date",
+                "verbose_name": "Date of won deal closing",
+                "type": "DateTimeField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "amount",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": true,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "closing_reason",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "probability",
+                "verbose_name": "Probability (%)",
+                "type": "PositiveSmallIntegerField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "ticket",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "request",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "partner_contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "relevant",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "active",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "important",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "is_new",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "remind_me",
+                "verbose_name": "Remind me.",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "co_owner",
+                "verbose_name": "Co-owner",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "tier_name",
+                "verbose_name": "Price tier",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "discount_type",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "discount_value",
+                "verbose_name": "Discount",
+                "type": "DecimalField",
+                "null": true,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "tags",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "files",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_deal_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_deal_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_deal_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "stage",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Stage",
+                "related_model_label": "crm.Stage",
+                "required_for_input": true,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Currency",
+                "related_model_label": "crm.Currency",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "closing_reason",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "ClosingReason",
+                "related_model_label": "crm.ClosingReason",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "request",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "required_for_input": false,
+                "related_name": "deals",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "required_for_input": false,
+                "related_name": "deals",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "partner_contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "required_for_input": false,
+                "related_name": "partner_contacts",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "co_owner",
+                "verbose_name": "Co-owner",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_deal_co_owner_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "tier_name",
+                "verbose_name": "Price tier",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": false,
+                "related_name": "crm_deal_tier_name_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "tags",
+                "verbose_name": "",
+                "type": "ManyToMany",
+                "related_model": "Tag",
+                "related_model_label": "crm.Tag",
+                "required_for_input": false
+            },
+            {
+                "field": "files",
+                "verbose_name": "",
+                "type": "GenericRelation",
+                "related_model": "TheFile",
+                "related_model_label": "common.TheFile",
+                "required_for_input": false,
+                "related_name": "+",
+                "on_delete": "DO_NOTHING"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Payment",
+                "related_model_label": "crm.Payment",
+                "field": "deal",
+                "accessor_name": "payment_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CrmEmail",
+                "related_model_label": "crm.CrmEmail",
+                "field": "deal",
+                "accessor_name": "deal_emails",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "deal",
+                "accessor_name": "requests",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Output",
+                "related_model_label": "crm.Output",
+                "field": "deal",
+                "accessor_name": "output_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Deal (Deal) is a CRM model. A sales deal or opportunity in the sales pipeline, with an amount, currency, stage, probability and next step. Deals are created by processing a customer Request. Fields: owner, department, name, next_step, next_step_date (Step date), description, workflow, stage, stages_dates (Dates of the stages), closing_date (Date of deal closing), win_closing_date (Date of won deal closing), amount, currency, closing_reason, probability (Probability (%)), ticket, city, country, lead, contact, request, company (Company of contact), partner_contact, relevant, active, important, is_new, remind_me (Remind me.), co_owner (Co-owner), tier_name (Price tier), discount_type, discount_value (Discount), tags, files. Relationships: owner links to User, department links to Group, stage links to Stage, currency links to Currency, closing_reason links to ClosingReason, city links to City, country links to Country, lead links to Lead, contact links to Contact, request links to Request, company links to Company, partner_contact links to Contact, co_owner links to User, tier_name links to ClientType, tags links to Tag, files links to TheFile. Referenced by: CrmEmail, Output, Payment, Request."
+    },
+    "CrmEmail": {
+        "model": "CrmEmail",
+        "app_label": "crm",
+        "model_label": "crm.CrmEmail",
+        "verbose_name": "Email",
+        "proxy": false,
+        "concrete_model": "CrmEmail",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "subject",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "content",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "signature",
+                "verbose_name": "Choose signature",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "prev_corr",
+                "verbose_name": "Previous correspondence",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "is_html",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "to",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": true,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "from_field",
+                "verbose_name": "From",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "cc",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "bcc",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "sent",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "incoming",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "trash",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "inquiry",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "read_receipt",
+                "verbose_name": "Request a read receipt",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "request",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "uid",
+                "verbose_name": "",
+                "type": "PositiveIntegerField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "imap_host",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "email_host_user",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "ticket",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "message_id",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "no_reply_needed",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "files",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_crmemail_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_crmemail_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_crmemail_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "signature",
+                "verbose_name": "Choose signature",
+                "type": "ForeignKey",
+                "related_model": "Signature",
+                "related_model_label": "massmail.Signature",
+                "required_for_input": false,
+                "related_name": "crm_crmemail_owner_signature_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "required_for_input": false,
+                "related_name": "deal_emails",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "required_for_input": false,
+                "related_name": "lead_emails",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "required_for_input": false,
+                "related_name": "contact_emails",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "company",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "required_for_input": false,
+                "related_name": "company_emails",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "request",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "required_for_input": false,
+                "related_name": "request_emails",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "files",
+                "verbose_name": "",
+                "type": "GenericRelation",
+                "related_model": "TheFile",
+                "related_model_label": "common.TheFile",
+                "required_for_input": false,
+                "related_name": "+",
+                "on_delete": "DO_NOTHING"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "CrmEmail (Email) is a CRM model. An email message linked to a lead, contact, company or deal. Fields: owner, department, subject, content, signature (Choose signature), prev_corr (Previous correspondence), is_html, to, from_field (From), cc, bcc, sent, incoming, trash, inquiry, read_receipt (Request a read receipt), deal, lead, contact, company, request, uid, imap_host, email_host_user, ticket, message_id, no_reply_needed, files. Relationships: owner links to User, department links to Group, signature links to Signature, deal links to Deal, lead links to Lead, contact links to Contact, company links to Company, request links to Request, files links to TheFile. Referenced by: ."
+    },
+    "Company": {
+        "model": "Company",
+        "app_label": "crm",
+        "model_label": "crm.Company",
+        "verbose_name": "Company",
+        "proxy": false,
+        "concrete_model": "Company",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "address",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "region",
+                "verbose_name": "Region/State",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "district",
+                "verbose_name": "District/County",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "disqualified",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "massmail",
+                "verbose_name": "Mass mailing",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "token",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "was_in_touch",
+                "verbose_name": "Last contact date",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "full_name",
+                "verbose_name": "Company name",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "alternative_names",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "website",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "active",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "registration_number",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "type",
+                "verbose_name": "Type of company",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "logo",
+                "verbose_name": "",
+                "type": "FileField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "tags",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "industry",
+                "verbose_name": "Industry of company",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "files",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_company_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_company_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "LeadSource",
+                "related_model_label": "crm.LeadSource",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "owner",
+                "verbose_name": "Assigned to",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_company_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "type",
+                "verbose_name": "Type of company",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "tags",
+                "verbose_name": "",
+                "type": "ManyToMany",
+                "related_model": "Tag",
+                "related_model_label": "crm.Tag",
+                "required_for_input": false
+            },
+            {
+                "field": "industry",
+                "verbose_name": "Industry of company",
+                "type": "ManyToMany",
+                "related_model": "Industry",
+                "related_model_label": "crm.Industry",
+                "required_for_input": false
+            },
+            {
+                "field": "files",
+                "verbose_name": "",
+                "type": "GenericRelation",
+                "related_model": "TheFile",
+                "related_model_label": "common.TheFile",
+                "required_for_input": false,
+                "related_name": "+",
+                "on_delete": "DO_NOTHING"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "company",
+                "accessor_name": "lead_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "field": "company",
+                "accessor_name": "contacts",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "company",
+                "accessor_name": "deals",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CrmEmail",
+                "related_model_label": "crm.CrmEmail",
+                "field": "company",
+                "accessor_name": "company_emails",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "company",
+                "accessor_name": "requests",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Company (Company) is a CRM model. A customer, client account or partner organisation of the business. Fields: department, address, region (Region/State), district (District/County), description, disqualified, email, lead_source, massmail (Mass mailing), was_in_touch (Last contact date), owner (Assigned to), full_name (Company name), alternative_names, website, active, phone, city_name, city, registration_number, country, type (Type of company), logo, tags, industry (Industry of company), files. Relationships: department links to Group, lead_source links to LeadSource, owner links to User, city links to City, country links to Country, type links to ClientType, tags links to Tag, industry links to Industry, files links to TheFile. Referenced by: Contact, CrmEmail, Deal, Lead, Request."
+    },
+    "Request": {
+        "model": "Request",
+        "app_label": "crm",
+        "model_label": "crm.Request",
+        "verbose_name": "Request",
+        "proxy": false,
+        "concrete_model": "Request",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "request_for",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "first_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "middle_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "last_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "email",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "phone",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "website",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "utm_source",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "utm_medium",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "utm_campaign",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "utm_term",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "utm_content",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "gclid",
+                "verbose_name": "Google click ID",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "fbclid",
+                "verbose_name": "Facebook click ID",
+                "type": "CharField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company_name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "receipt_date",
+                "verbose_name": "Date of receipt",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "city_name",
+                "verbose_name": "City",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "translation",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "remark",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "pending",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "subsequent",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "duplicate",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "verification_required",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "case",
+                "verbose_name": "Case/Incident",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "ticket",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "co_owner",
+                "verbose_name": "Co-owner",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "products",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "files",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_request_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_request_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_request_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "lead_source",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "LeadSource",
+                "related_model_label": "crm.LeadSource",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "lead",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "contact",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "required_for_input": false,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "company",
+                "verbose_name": "Company of contact",
+                "type": "ForeignKey",
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "required_for_input": false,
+                "related_name": "requests",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "required_for_input": false,
+                "related_name": "requests",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "country",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Country",
+                "related_model_label": "crm.Country",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "city",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "City",
+                "related_model_label": "crm.City",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "co_owner",
+                "verbose_name": "Co-owner",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_request_co_owner_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "products",
+                "verbose_name": "",
+                "type": "ManyToMany",
+                "related_model": "Product",
+                "related_model_label": "crm.Product",
+                "required_for_input": false
+            },
+            {
+                "field": "files",
+                "verbose_name": "",
+                "type": "GenericRelation",
+                "related_model": "TheFile",
+                "related_model_label": "common.TheFile",
+                "required_for_input": false,
+                "related_name": "+",
+                "on_delete": "DO_NOTHING"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "request",
+                "accessor_name": "deals",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CrmEmail",
+                "related_model_label": "crm.CrmEmail",
+                "field": "request",
+                "accessor_name": "request_emails",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Request (Request) is a CRM model. A customer inquiry, enquiry or request for a product or service, linked to a lead or to a contact and company. Processing a request creates the deal (opportunity). Fields: owner, department, request_for, first_name, middle_name, last_name, email, phone, website, lead_source, utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid (Google click ID), fbclid (Facebook click ID), company_name, receipt_date (Date of receipt), lead, contact, company (Company of contact), deal, country, city, city_name (City), description, translation, remark, pending, subsequent, duplicate, verification_required, case (Case/Incident), ticket, co_owner (Co-owner), products, files. Relationships: owner links to User, department links to Group, lead_source links to LeadSource, lead links to Lead, contact links to Contact, company links to Company, deal links to Deal, country links to Country, city links to City, co_owner links to User, products links to Product, files links to TheFile. Referenced by: CrmEmail, Deal."
+    },
+    "Tag": {
+        "model": "Tag",
+        "app_label": "crm",
+        "model_label": "crm.Tag",
+        "verbose_name": "Tag",
+        "proxy": false,
+        "concrete_model": "Tag",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "name",
+                "verbose_name": "Tag name",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_tag_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_tag_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_tag_department_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Lead",
+                "related_model_label": "crm.Lead",
+                "field": "tags",
+                "accessor_name": "lead_set",
+                "type": "ManyToMany"
+            },
+            {
+                "related_model": "Contact",
+                "related_model_label": "crm.Contact",
+                "field": "tags",
+                "accessor_name": "contact_set",
+                "type": "ManyToMany"
+            },
+            {
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "field": "tags",
+                "accessor_name": "deal_set",
+                "type": "ManyToMany"
+            },
+            {
+                "related_model": "Company",
+                "related_model_label": "crm.Company",
+                "field": "tags",
+                "accessor_name": "company_set",
+                "type": "ManyToMany"
+            }
+        ],
+        "description": "Tag (Tag) is a CRM model. A label that can be attached to leads, contacts and companies. Fields: owner, department, name (Tag name). Relationships: owner links to User, department links to Group. Referenced by: Company, Contact, Deal, Lead."
+    },
+    "ProductCategory": {
+        "model": "ProductCategory",
+        "app_label": "crm",
+        "model_label": "crm.ProductCategory",
+        "verbose_name": "Product category",
+        "proxy": false,
+        "concrete_model": "ProductCategory",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_productcategory_department_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Product",
+                "related_model_label": "crm.Product",
+                "field": "product_category",
+                "accessor_name": "product_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "CategoryPriceRule",
+                "related_model_label": "crm.CategoryPriceRule",
+                "field": "category",
+                "accessor_name": "crm_categorypricerule_category_related",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "ProductCategory (Product category) is a CRM model.  Fields: department, name, description. Relationships: department links to Group. Referenced by: CategoryPriceRule, Product."
+    },
+    "Product": {
+        "model": "Product",
+        "app_label": "crm",
+        "model_label": "crm.Product",
+        "verbose_name": "Product",
+        "proxy": false,
+        "concrete_model": "Product",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "name",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "price",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "on_sale",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "type",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": true,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "product_category",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "main_image",
+                "verbose_name": "",
+                "type": "FileField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "files",
+                "verbose_name": "",
+                "type": "ManyToManyField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_product_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_product_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Currency",
+                "related_model_label": "crm.Currency",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "product_category",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "ProductCategory",
+                "related_model_label": "crm.ProductCategory",
+                "required_for_input": false,
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "files",
+                "verbose_name": "",
+                "type": "GenericRelation",
+                "related_model": "TheFile",
+                "related_model_label": "common.TheFile",
+                "required_for_input": false,
+                "related_name": "+",
+                "on_delete": "DO_NOTHING"
+            }
+        ],
+        "reverse_relationships": [
+            {
+                "related_model": "Request",
+                "related_model_label": "crm.Request",
+                "field": "products",
+                "accessor_name": "request_set",
+                "type": "ManyToMany"
+            },
+            {
+                "related_model": "Output",
+                "related_model_label": "crm.Output",
+                "field": "product",
+                "accessor_name": "output_set",
+                "type": "ForeignKey"
+            },
+            {
+                "related_model": "ProductPriceTier",
+                "related_model_label": "crm.ProductPriceTier",
+                "field": "product",
+                "accessor_name": "productpricetier_set",
+                "type": "ForeignKey"
+            }
+        ],
+        "description": "Product (Product) is a CRM model.  Fields: department, name, description, price, currency, on_sale, type, product_category, main_image, files. Relationships: department links to Group, currency links to Currency, product_category links to ProductCategory, files links to TheFile. Referenced by: Output, ProductPriceTier, Request."
+    },
+    "Output": {
+        "model": "Output",
+        "app_label": "crm",
+        "model_label": "crm.Output",
+        "verbose_name": "Output",
+        "proxy": false,
+        "concrete_model": "Output",
+        "fields": [
+            {
+                "name": "amount",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "product",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "quantity",
+                "verbose_name": "",
+                "type": "PositiveSmallIntegerField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "shipping_date",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "planned_shipping_date",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "actual_shipping_date",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "product_is_shipped",
+                "verbose_name": "Shipped",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "serial_number",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "currency",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Currency",
+                "related_model_label": "crm.Currency",
+                "required_for_input": true,
+                "on_delete": "DO_NOTHING"
+            },
+            {
+                "field": "deal",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Deal",
+                "related_model_label": "crm.Deal",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "product",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Product",
+                "related_model_label": "crm.Product",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "proxy_models": [
+            "Shipment"
+        ],
+        "description": "Output (Output) is a CRM model.  Fields: amount, currency, deal, product, quantity, shipping_date, planned_shipping_date, actual_shipping_date, product_is_shipped (Shipped), serial_number. Relationships: currency links to Currency, deal links to Deal, product links to Product. Referenced by: ."
+    },
+    "Shipment": {
+        "model": "Shipment",
+        "app_label": "crm",
+        "model_label": "crm.Shipment",
+        "verbose_name": "Shipment",
+        "proxy": true,
+        "concrete_model": "Output",
+        "fields": [],
+        "relationships": [],
+        "reverse_relationships": [],
+        "description": "Shipment is a proxy model for Output. It uses the same database table and fields as Output. When users ask about Shipment, retrieve the Output model schema."
+    },
+    "CategoryPriceRule": {
+        "model": "CategoryPriceRule",
+        "app_label": "crm",
+        "model_label": "crm.CategoryPriceRule",
+        "verbose_name": "Category Price Rule",
+        "proxy": false,
+        "concrete_model": "CategoryPriceRule",
+        "fields": [
+            {
+                "name": "price_type",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "tier_name",
+                "verbose_name": "Name",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "base_tier",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "percentage",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "category",
+                "verbose_name": "Product Category",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "tier_name",
+                "verbose_name": "Name",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": true,
+                "related_name": "crm_categorypricerule_tier_name_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_categorypricerule_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "category",
+                "verbose_name": "Product Category",
+                "type": "ForeignKey",
+                "related_model": "ProductCategory",
+                "related_model_label": "crm.ProductCategory",
+                "required_for_input": true,
+                "related_name": "crm_categorypricerule_category_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "CategoryPriceRule (Category Price Rule) is a CRM model.  Fields: price_type, tier_name (Name), base_tier, percentage, category (Product Category). Relationships: tier_name links to ClientType, category links to ProductCategory. Referenced by: ."
+    },
+    "DepartmentPriceRule": {
+        "model": "DepartmentPriceRule",
+        "app_label": "crm",
+        "model_label": "crm.DepartmentPriceRule",
+        "verbose_name": "Department Price Rule",
+        "proxy": false,
+        "concrete_model": "DepartmentPriceRule",
+        "fields": [
+            {
+                "name": "price_type",
+                "verbose_name": "",
+                "type": "CharField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "tier_name",
+                "verbose_name": "Name",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "base_tier",
+                "verbose_name": "",
+                "type": "BooleanField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "percentage",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            }
+        ],
+        "relationships": [
+            {
+                "field": "tier_name",
+                "verbose_name": "Name",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": true,
+                "related_name": "crm_departmentpricerule_tier_name_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_departmentpricerule_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": true,
+                "related_name": "crm_departmentpricerule_department_related",
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "DepartmentPriceRule (Department Price Rule) is a CRM model.  Fields: price_type, tier_name (Name), base_tier, percentage, department. Relationships: tier_name links to ClientType, department links to Group. Referenced by: ."
+    },
+    "ProductPriceTier": {
+        "model": "ProductPriceTier",
+        "app_label": "crm",
+        "model_label": "crm.ProductPriceTier",
+        "verbose_name": "Product Price Tier",
+        "proxy": false,
+        "concrete_model": "ProductPriceTier",
+        "fields": [
+            {
+                "name": "creation_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": false,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "update_date",
+                "verbose_name": "",
+                "type": "DateTimeField",
+                "null": false,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "tier_name",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "price",
+                "verbose_name": "",
+                "type": "DecimalField",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "description",
+                "verbose_name": "",
+                "type": "TextField",
+                "null": false,
+                "blank": true,
+                "has_default": true,
+                "required_for_input": false
+            },
+            {
+                "name": "product",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "null": false,
+                "blank": false,
+                "has_default": false,
+                "required_for_input": true
+            },
+            {
+                "name": "min_quantity",
+                "verbose_name": "Minimum Quantity",
+                "type": "PositiveIntegerField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "valid_from",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            },
+            {
+                "name": "valid_to",
+                "verbose_name": "",
+                "type": "DateField",
+                "null": true,
+                "blank": true,
+                "has_default": false,
+                "required_for_input": false
+            }
+        ],
+        "relationships": [
+            {
+                "field": "owner",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_productpricetier_owner_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "modified_by",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "User",
+                "related_model_label": "auth.User",
+                "required_for_input": false,
+                "related_name": "crm_productpricetier_modified_by_related",
+                "on_delete": "SET_NULL"
+            },
+            {
+                "field": "department",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Group",
+                "related_model_label": "auth.Group",
+                "required_for_input": false,
+                "related_name": "crm_productpricetier_department_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "tier_name",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "ClientType",
+                "related_model_label": "crm.ClientType",
+                "required_for_input": true,
+                "related_name": "crm_productpricetier_tier_name_related",
+                "on_delete": "CASCADE"
+            },
+            {
+                "field": "product",
+                "verbose_name": "",
+                "type": "ForeignKey",
+                "related_model": "Product",
+                "related_model_label": "crm.Product",
+                "required_for_input": true,
+                "on_delete": "CASCADE"
+            }
+        ],
+        "reverse_relationships": [],
+        "description": "ProductPriceTier (Product Price Tier) is a CRM model.  Fields: owner, department, tier_name, price, description, product, min_quantity (Minimum Quantity), valid_from, valid_to. Relationships: owner links to User, department links to Group, tier_name links to ClientType, product links to Product. Referenced by: ."
+    }
+}

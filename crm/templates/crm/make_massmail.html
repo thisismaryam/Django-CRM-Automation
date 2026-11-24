@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}<link rel="stylesheet" type="text/css" href="{% static "admin/css/forms.css" %}">
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% url 'admin:jsi18n' %}"></script>
+{{ form.media }}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=app_label %}">{{ app_label }}</a>
+&rsaquo; {{ verbose_name }}
+</div>
+{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Make a choice" %}</h1>
+    <div id="content-main">
+    <form action="" method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <fieldset class="module aligned">
+        {% for field in form %}
+            <div class="form-row{% if field.errors %} errors{% endif %} field-{{ field.name }}">
+                {% if field.errors %}{{ field.errors }}{% endif %}
+                {% if field.use_fieldset %}
+                <fieldset{% if field.help_text %} aria-describedby="{{ field.id_for_label }}_helptext"{% endif %}>
+                    {{ field.legend_tag }}
+                    <div>
+                        <div class="flex-container">
+                            {{ field }}
+                        </div>
+                        {% if field.help_text %}
+                        <div class="help" id="{{ field.id_for_label }}_helptext">
+                            <div>{{ field.help_text|safe }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </fieldset>
+                {% else %}
+                <div class="flex-container">
+                    {{ field.label_tag }}
+                    {{ field }}
+                </div>
+                {% if field.help_text %}
+                <div class="help" id="{{ field.id_for_label }}_helptext">
+                    <div>{{ field.help_text|safe }}</div>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+        </fieldset>
+        <div class="submit-row">
+            <input type="submit" value="{% translate 'Submit' %}">
+        </div>
+    </form>
+    </div>
+{% endblock %}

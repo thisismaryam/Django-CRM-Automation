@@ -1,0 +1,23 @@
+from crm.models.country import ContinentalRegion, SubRegion, IntermediaryRegion
+from crm.models.country import Country, City
+from crm.models.others import ClosingReason
+from crm.models.others import LeadSource
+from crm.models.others import ClientType
+from crm.models.others import Industry
+from crm.models.others import Stage
+from crm.models.payment import Currency
+from crm.models.payment import Payment
+from crm.models.payment import Rate
+from crm.models.lead import Lead
+from crm.models.contact import Contact
+from crm.models.deal import Deal
+from crm.models.crmemail import CrmEmail
+from crm.models.company import Company
+from crm.models.request import Request
+from crm.models.tag import Tag
+from crm.models.product import Product
+from crm.models.output import Output
+from crm.models.output import Shipment
+from crm.models.pricingtier import ProductPriceTier
+from crm.models.pricingtier import CategoryPriceRule
+from crm.models.pricingtier import DepartmentPriceRule
