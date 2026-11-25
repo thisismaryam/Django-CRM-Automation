@@ -149,6 +149,13 @@ class LlmFallbackTests(SimpleTestCase):
             [RunnableLambda(broken), RunnableLambda(lambda _: AIMessage(content="groq"))])
         self.assertEqual(chain.invoke("hi").content, "groq")
 
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key"},
+                clear=True)
+    def test_gemini_provider_defaults(self):
+        gemini, gemini_fallback, _groq = build_providers(tools)
+        self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-3.5-flash")
+        self.assertEqual(gemini_fallback.bound.model.split("/")[-1], "gemini-3.8-flash")
+
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key",
                              "GEMINI_MODEL": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"})
     def test_providers_are_configurable_and_tool_bound(self):

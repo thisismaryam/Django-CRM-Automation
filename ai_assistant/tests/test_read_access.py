@@ -1,5 +1,9 @@
 """CRM read tools: department scoping and permission enforcement."""
+import json
 from django.core.exceptions import PermissionDenied
+from django.contrib.auth.models import Group, Permission
+from unittest.mock import patch
+from django.test import TestCase
 
 from ai_assistant.access import CrmAccess
 from ai_assistant.read_tools import (
@@ -7,9 +11,10 @@ from ai_assistant.read_tools import (
     search_companies, search_contacts, search_deals, search_leads,
     search_payments, search_requests,
 )
+from ai_assistant.tools import search_database_schema
 from ai_assistant.tests.base import GLOBAL_SALES, SalesTestCase
 from common.utils.helpers import USER_MODEL
-from crm.models import Company, Deal, Payment
+from crm.models import Company, Deal, Payment, Product
 
 
 class CrmAccessTests(SalesTestCase):
@@ -53,6 +58,18 @@ class CrmAccessTests(SalesTestCase):
     def test_deals_cannot_be_added_directly(self):
         self.assertFalse(CrmAccess(self.manager).can_add(Deal))
         self.assertFalse(CrmAccess(self.admin).can_add(Deal))
+
+
+class EmptyDatabaseReadTests(TestCase):
+    def test_absent_acme_returns_not_found_from_database_tool(self):
+        Group.objects.get_or_create(name="co-workers")
+        admin = USER_MODEL.objects.create_superuser(
+            username="empty_database_admin", email="admin@example.test", password="test")
+        result = search_companies.invoke(
+            {"name": "Acme Corp"},
+            config={"configurable": {"user_id": admin.pk}})
+        self.assertEqual(result, "No companies found that you can access with these criteria.")
+        self.assertNotIn("Acme Corp", result)
 
 
 class ReadToolTests(SalesTestCase):
@@ -123,7 +140,9 @@ class ReadToolTests(SalesTestCase):
         self.assertEqual(mine["open_deals"]["count"], 1)
 
     def test_options_are_department_specific(self):
-        data = self.run_json(list_crm_options, self.manager, kind="stages")
+        raw = self.run_tool(list_crm_options, self.manager, kind="stages")
+        self.assertFalse(raw.startswith("PERMISSION_DENIED"), raw)
+        data = json.loads(raw)
         self.assertTrue(data)
         from crm.models import Stage
         self.assertEqual(
@@ -133,3 +152,50 @@ class ReadToolTests(SalesTestCase):
     def test_list_departments(self):
         data = self.run_json(list_departments, self.manager)
         self.assertEqual([d["name"] for d in data], ["Global sales"])
+
+    def test_ordinary_user_can_use_schema_and_permitted_read_tools(self):
+        ordinary = USER_MODEL.objects.create_user(
+            username="temporary_ordinary", password="test", is_staff=True)
+        ordinary.groups.add(Group.objects.get(pk=GLOBAL_SALES))
+        config = self.config(ordinary)
+
+        # Schema RAG has no CRM-record permissions or write capability.
+        with patch("ai_assistant.tools.search_schema_with_relationships",
+                   return_value={"matched_models": [], "expanded_models": [],
+                                 "schemas": {}}):
+            schema = search_database_schema.invoke({"query": "lead fields"})
+        self.assertIn("## Lead", schema)
+        self.assertIn("not live records", schema)
+
+        self.assertTrue(search_companies.invoke({}, config=config).startswith(
+            "PERMISSION_DENIED"))
+        Product.objects.create(name="Restricted test product", department_id=GLOBAL_SALES)
+        self.assertNotIn("Restricted test product", list_crm_options.invoke(
+            {"kind": "products"}, config=config))
+
+        # Explicit view permissions enable read-only RAG, still department scoped.
+        view_codenames = [f"view_{model}" for model in (
+            "lead", "company", "contact", "request", "deal", "payment")]
+        ordinary.user_permissions.set(Permission.objects.filter(
+            content_type__app_label="crm", codename__in=view_codenames))
+        ordinary = USER_MODEL.objects.get(pk=ordinary.pk)
+        config = self.config(ordinary)
+        product_result = list_crm_options.invoke({"kind": "products"}, config=config)
+        self.assertTrue(product_result.startswith("PERMISSION_DENIED"))
+        ordinary.user_permissions.add(Permission.objects.get(
+            content_type__app_label="crm", codename="view_product"))
+        ordinary = USER_MODEL.objects.get(pk=ordinary.pk)
+        config = self.config(ordinary)
+        product_result = list_crm_options.invoke({"kind": "products"}, config=config)
+        self.assertIn("Restricted test product", product_result)
+        company_result = search_companies.invoke({}, config=config)
+        self.assertIn("Acme Corp", company_result)
+        self.assertNotIn("Hidden Local GmbH", company_result)
+        lead_result = search_leads.invoke({}, config=config)
+        self.assertIn("Leo Lead", lead_result)
+        self.assertNotIn("Hidden", lead_result)
+
+        for model in ("lead", "company", "contact", "request", "deal", "payment"):
+            self.assertFalse(ordinary.has_perm(f"crm.add_{model}"), model)
+            self.assertFalse(ordinary.has_perm(f"crm.change_{model}"), model)
+            self.assertFalse(ordinary.has_perm(f"crm.delete_{model}"), model)

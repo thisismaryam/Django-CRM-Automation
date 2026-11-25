@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.contrib.auth.models import Group
 from django.db import DatabaseError
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -19,7 +20,7 @@ from ai_assistant.agent import (
     PROVIDER_ERROR_TEXT, build_graph, set_app, sqlite_checkpointer,
 )
 from ai_assistant.models import ActionRequest
-from ai_assistant.tests.base import SalesTestCase, ScriptedLLM, tool_call
+from ai_assistant.tests.base import GLOBAL_SALES, SalesTestCase, ScriptedLLM, tool_call
 from ai_assistant.workflow import PLAN_TOOL_NAME
 from common.utils.helpers import USER_MODEL
 from crm.models import Lead
@@ -91,6 +92,22 @@ class RoutingTests(GraphTestCase):
         self.assertIn("not live records", tool_message.content)
         self.assertIn("## Deal", tool_message.content)
 
+    @patch("ai_assistant.tools.search_schema_with_relationships",
+           return_value={"matched_models": [], "expanded_models": [], "schemas": {}})
+    def test_ordinary_user_can_complete_schema_rag_without_record_permissions(self, _search):
+        ordinary = USER_MODEL.objects.create_user(
+            username="temporary_schema_rag", password="test", is_staff=True)
+        ordinary.groups.add(Group.objects.get(name="Global sales"))
+        llm = self.script(tool_call("search_database_schema", {"query": "lead fields"}),
+                          AIMessage(content="The Lead schema describes prospect fields."))
+        result = self.start(ordinary, "What fields does a lead have?")
+        tool_message = next(m for m in result["messages"] if isinstance(m, ToolMessage))
+        self.assertIn("## Lead", tool_message.content)
+        self.assertIn("not live records", tool_message.content)
+        self.assertEqual(result["messages"][-1].content,
+                         "The Lead schema describes prospect fields.")
+        self.assertEqual(len(llm.prompts), 2)
+
     def test_tool_failure_is_reported_to_the_model_not_raised(self):
         self.script(tool_call("search_leads", {"query": "x"}),
                     AIMessage(content="The lookup failed, sorry."))
@@ -102,11 +119,43 @@ class RoutingTests(GraphTestCase):
 
     def test_provider_outage_gives_a_clear_message(self):
         self.script(RuntimeError("quota exceeded: key=abc"))
-        result = self.start(self.manager, "hello")
+        result = self.start(self.manager, "What companies exist in the CRM?")
         self.assertEqual(result["messages"][-1].content, PROVIDER_ERROR_TEXT)
+
+    def test_greeting_is_deterministic_and_does_not_call_provider(self):
+        with patch("ai_assistant.agent.get_llm", side_effect=AssertionError(
+                "simple greetings should not call a provider")):
+            for index, greeting in enumerate(("hello", "hi!", "hey", "Good morning.")):
+                result = self.start(self.manager, greeting, thread=f"greeting-{index}")
+                answer = result["messages"][-1].content
+                self.assertIn("Hello!", answer)
+                self.assertIn("CRM", answer)
+                self.assertNotIn("Acme", answer)
+                self.assertNotIn("example company", answer.lower())
 
 
 class ApprovalFlowTests(GraphTestCase):
+    def test_ordinary_user_cannot_reach_write_approval(self):
+        ordinary = USER_MODEL.objects.create_user(
+            username="temporary_ordinary_graph", password="test", is_staff=True)
+        ordinary.groups.add(Group.objects.get(name="Global sales"))
+        proposal = {
+            "goal": "Add a lead",
+            "operations": [{
+                "op_id": "op1", "action": "create", "record_type": "lead",
+                "fields": [
+                    {"name": "first_name", "value": "Denied"},
+                    {"name": "email", "value": "denied-graph@example.test"},
+                ],
+            }],
+        }
+        self.script(tool_call(PLAN_TOOL_NAME, proposal),
+                    AIMessage(content="You do not have permission to create leads."))
+        self.start(ordinary, "Add a lead named Denied")
+        self.assertIsNone(self.pending_payload(ordinary))
+        self.assertFalse(ActionRequest.objects.filter(user=ordinary).exists())
+        self.assertFalse(Lead.objects.filter(email="denied-graph@example.test").exists())
+
     def test_plan_pauses_for_approval_then_executes(self):
         llm = self.script(tool_call(PLAN_TOOL_NAME, LEAD_PLAN))
         self.start(self.manager, "Add Nina, nina@newco.example, as a lead")
@@ -126,6 +175,51 @@ class ApprovalFlowTests(GraphTestCase):
                  for c in m.tool_calls}
         answered = {m.tool_call_id for m in result["messages"] if isinstance(m, ToolMessage)}
         self.assertEqual(calls, answered)
+
+    def test_unassigned_superuser_request_to_deal_requires_approval(self):
+        admin = USER_MODEL.objects.create_superuser(
+            username="Maryam", email="maryam@example.test", password="test")
+        self.assertFalse(admin.groups.filter(name="Global sales").exists())
+        request_plan = {
+            "goal": "Create a Request and deal for the existing lead",
+            "operations": [{
+                "op_id": "op1", "action": "create", "record_type": "request",
+                "create_deal": True,
+                "fields": [
+                    {"name": "request_for", "value": "Approved admin opportunity"},
+                    {"name": "lead", "value": str(self.lead.pk)},
+                ],
+            }],
+        }
+        self.script(tool_call(PLAN_TOOL_NAME, request_plan))
+        self.start(admin, "Create a Request and Deal for this lead")
+
+        payload = self.pending_payload(admin)
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["action"], "SALES_WORKFLOW")
+        self.assertEqual(payload["operations"][0]["inferred"]["Department"],
+                         "Global sales (from linked Lead)")
+        from crm.models import Deal, Request
+        self.assertFalse(Request.objects.filter(
+            request_for="Approved admin opportunity").exists())
+        self.assertFalse(Deal.objects.filter(
+            name="Approved admin opportunity").exists())
+
+        result = self.graph.invoke(
+            Command(resume={"decision": "approved",
+                            "operation_id": payload["operation_id"]}),
+            config=self.config(admin))
+        created_request = Request.objects.get(
+            request_for="Approved admin opportunity")
+        created_deal = Deal.objects.get(request=created_request)
+        self.assertEqual(result["execution"]["status"], "success")
+        self.assertEqual(created_request.lead, self.lead)
+        self.assertEqual(created_request.owner, self.manager)
+        self.assertEqual(created_request.department_id, GLOBAL_SALES)
+        self.assertEqual(created_request.deal, created_deal)
+        self.assertEqual(created_deal.owner, self.manager)
+        self.assertEqual(created_deal.department_id, GLOBAL_SALES)
+        self.assertFalse(admin.groups.filter(name="Global sales").exists())
 
     def test_rejection_writes_nothing(self):
         self.script(tool_call(PLAN_TOOL_NAME, LEAD_PLAN))

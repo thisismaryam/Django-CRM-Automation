@@ -44,7 +44,7 @@ from pydantic import BaseModel, Field, field_validator
 from ai_assistant.access import SALES_MODELS, CrmAccess, record_url
 from ai_assistant.models import ActionRequest
 from common.models import Department
-from common.utils.helpers import get_delta_date
+from common.utils.helpers import get_delta_date, get_department_id
 from crm.models import (
     Company, Contact, Currency, Deal, Lead, Payment, Product, Request, Stage,
 )
@@ -684,10 +684,52 @@ class _PlanValidator:
             # The CRM shows "Create deal" only to users with change_deal
             # (RequestAdmin.change_view -> has_change_deal_perm).
             raise PermissionDenied("you are not allowed to create deals from requests")
-        if not access.home_department_id:
-            op.errors.append("creating a deal requires your account to belong to a "
-                             "sales department.")
+
+        # Managers process requests in their own department. A superuser has
+        # no implicit department, so mirror the CRM's _get_or_create_deal rule:
+        # use the linked counterparty's assigned owner and department. Never
+        # add an admin to a department just to make this workflow work.
+        deal_owner = access.user
+        deal_department_id = access.home_department_id
+        department_source = "your department"
+        if access.user.is_superuser and not deal_department_id:
+            if op.action == "update" and instance.owner_id:
+                deal_owner = instance.owner
+                deal_department_id = instance.department_id or get_department_id(deal_owner)
+                department_source = f"Request #{instance.pk}"
+            elif person is not None:
+                deal_owner = person.owner
+                deal_department_id = person.department_id or (
+                    get_department_id(deal_owner) if deal_owner else None)
+                department_source = f"linked {person._meta.verbose_name}"
+            elif person_op is not None:
+                deal_owner = access.user
+                deal_department_id = person_op.data.get("department") or access.home_department_id
+                department_source = f"planned {person_op.record_type}"
+
+        if not deal_department_id:
+            op.errors.append(
+                "a sales department could not be inferred for this deal. Link a "
+                "counterparty assigned to a sales department or process the request "
+                "as a member of one.")
             return
+        if not deal_owner:
+            op.errors.append(
+                "an owner could not be inferred for this deal. Assign the linked "
+                "counterparty to a CRM user first.")
+            return
+
+        op.data["owner"] = str(deal_owner.pk)
+        op.data["department"] = str(deal_department_id)
+        op.inferred["Owner"] = (
+            f"{deal_owner.get_full_name() or deal_owner.username} "
+            f"(from {department_source})")
+        department = Department.objects.filter(pk=deal_department_id).first()
+        if department is None:
+            op.errors.append("the inferred sales department no longer exists.")
+            return
+        op.inferred["Department"] = f"{department} (from {department_source})"
+
         if op.action == "update":
             if instance.deal_id:
                 op.errors.append(f"request #{instance.pk} already has deal #{instance.deal_id}.")
@@ -698,7 +740,6 @@ class _PlanValidator:
                 "to create a deal, link the request to a contact or a lead "
                 "(existing id or one created earlier in this plan). Search first; "
                 "create a lead or contact if the person is new.")
-        department = Department.objects.filter(pk=access.home_department_id).first()
         if department and department.works_globally and "country" not in op.data:
             country = (instance.country_id if op.action == "update" and instance.country_id
                        else self._counterparty_country(
@@ -713,14 +754,15 @@ class _PlanValidator:
                         else [p.pk for p in instance.products.all()]
                     if value:
                         op.data[name] = value if isinstance(value, list) else str(value)
-        stage = Stage.objects.filter(department_id=access.home_department_id,
+        stage = Stage.objects.filter(department_id=deal_department_id,
                                      default=True).first()
         currency = _plan_default_currency(access)
         op.inferred["New deal"] = (
             f"name = request subject; stage = {stage or 'department default'}; "
             f"currency = {currency or 'state currency'}; next step = "
-            f"\"{FIRST_STEP}\" by {get_delta_date(1).isoformat()}; owner = you")
-        if Product.objects.filter(department_id=access.home_department_id).exists():
+            f"\"{FIRST_STEP}\" by {get_delta_date(1).isoformat()}; "
+            f"owner = {deal_owner.get_full_name() or deal_owner.username}")
+        if Product.objects.filter(department_id=deal_department_id).exists():
             op.data.setdefault("products", [])
         op.data.setdefault("country", "")
 
@@ -982,7 +1024,9 @@ def _post_for(op: PlannedOp | dict, access: CrmAccess) -> dict:
     create_deal = op.create_deal if isinstance(op, PlannedOp) else op["create_deal"]
     if not create_deal:
         return {}
-    return {"_create-deal": "1", "department": str(access.home_department_id or "")}
+    data = op.data if isinstance(op, PlannedOp) else op["data"]
+    department_id = data.get("department") or access.home_department_id
+    return {"_create-deal": "1", "department": str(department_id or "")}
 
 
 def _query_dict(data: dict, fields: list[str]) -> QueryDict:

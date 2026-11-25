@@ -1,13 +1,14 @@
 """Workflow plans: validation, approval payload, atomic execution."""
 from datetime import timedelta
 from decimal import Decimal
+from uuid import uuid4
 from unittest.mock import patch
 
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import Group
 from django.utils import timezone
 
-from ai_assistant.access import CrmAccess
+from ai_assistant.access import CrmAccess, SALES_MODELS
 from ai_assistant.models import ActionRequest
 from ai_assistant.tests.base import GLOBAL_SALES, SalesTestCase
 from ai_assistant.workflow import (
@@ -15,7 +16,7 @@ from ai_assistant.workflow import (
 )
 from common.utils.helpers import USER_MODEL
 from crm.models import (
-    Company, Contact, Deal, Lead, LeadSource, Payment, Request, Stage,
+    ClosingReason, Company, Contact, Deal, Lead, LeadSource, Payment, Request, Stage,
 )
 
 
@@ -152,6 +153,78 @@ class LeadWorkflowTests(WorkflowTestCase):
         self.assertRejected(outcome, "cannot be set", "Allowed:")
 
 
+class UnassignedAdminWorkflowTests(WorkflowTestCase):
+    def setUp(self):
+        self.maryam = USER_MODEL.objects.create_superuser(
+            username="Maryam", email="maryam@example.test", password="test")
+        self.assertFalse(self.maryam.groups.filter(pk=GLOBAL_SALES).exists())
+
+    def test_admin_has_every_supported_permission_except_direct_deal_create(self):
+        access = CrmAccess(self.maryam)
+        for model in SALES_MODELS.values():
+            self.assertTrue(access.can_view(model), model.__name__)
+            self.assertEqual(access.can_add(model), model is not Deal, model.__name__)
+        payment = Payment.objects.create(deal=self.acme_deal, amount=5, currency_id=1)
+        for record in (self.lead, self.acme, self.acme_contact,
+                       self.acme_request, self.acme_deal, payment):
+            self.assertTrue(access.can_change(record), record._meta.label)
+
+    def test_admin_can_create_request_without_a_department_membership(self):
+        outcome = self.validate(self.maryam, plan(op(
+            "op1", "create", "request", request_for="Admin unassigned request",
+            first_name="Maryam")))
+        self.assertTrue(outcome.ok, outcome.message)
+        self.assertFalse(Request.objects.filter(
+            request_for="Admin unassigned request").exists())
+
+        report = self.execute(self.maryam, outcome)
+        self.assertEqual(report["status"], "success", report)
+        request = Request.objects.get(request_for="Admin unassigned request")
+        self.assertEqual(request.owner, self.maryam)
+        self.assertIsNone(request.department_id)
+        self.assertFalse(self.maryam.groups.filter(pk=GLOBAL_SALES).exists())
+
+    def test_admin_request_to_deal_infers_counterparty_department_and_owner(self):
+        invalid = self.validate(self.maryam, plan(op(
+            "bad", "create", "request", request_for="Invalid mixed links",
+            first_name="Maryam", lead=self.lead.pk, contact=self.acme_contact.pk)))
+        self.assertRejected(invalid, "either a contact or a lead, not both")
+
+        outcome = self.validate(self.maryam, plan(op(
+            "op1", "create", "request", create_deal=True,
+            request_for="Admin approved opportunity", lead=self.lead.pk)))
+        self.assertTrue(outcome.ok, outcome.message)
+        self.assertFalse(Request.objects.filter(
+            request_for="Admin approved opportunity").exists())
+        self.assertFalse(Deal.objects.filter(
+            name="Admin approved opportunity").exists())
+
+        inferred = outcome.plan["operations"][0]["display"]["inferred"]
+        self.assertEqual(inferred["Department"], "Global sales (from linked Lead)")
+        self.assertEqual(
+            inferred["Owner"],
+            f"{self.manager.get_full_name() or self.manager.username} (from linked Lead)")
+
+        first = self.execute(self.maryam, outcome)
+        self.assertEqual(first["status"], "success", first)
+        request = Request.objects.get(request_for="Admin approved opportunity")
+        deal = Deal.objects.get(request=request)
+        self.assertEqual(request.lead, self.lead)
+        self.assertEqual(request.owner, self.manager)
+        self.assertEqual(request.department_id, GLOBAL_SALES)
+        self.assertEqual(request.deal, deal)
+        self.assertEqual(deal.request, request)
+        self.assertEqual(deal.lead, self.lead)
+        self.assertEqual(deal.owner, self.manager)
+        self.assertEqual(deal.department_id, GLOBAL_SALES)
+
+        second = self.execute(self.maryam, outcome)
+        self.assertEqual(second["status"], "already_processed")
+        self.assertEqual(Request.objects.filter(
+            request_for="Admin approved opportunity").count(), 1)
+        self.assertEqual(Deal.objects.filter(request=request).count(), 1)
+
+
 class PermissionTests(WorkflowTestCase):
     def test_user_without_add_permission_cannot_plan_creation(self):
         outcome = self.validate(self.chief, plan(op(
@@ -186,6 +259,89 @@ class PermissionTests(WorkflowTestCase):
         outcome = self.validate(self.manager, plan(op(
             "op1", "create", "deal", name="Direct deal")))
         self.assertRejected(outcome, "Deals cannot be created directly", "create_deal=true")
+
+    def test_ordinary_read_only_user_cannot_write_even_with_approval(self):
+        ordinary = USER_MODEL.objects.create_user(
+            username="temporary_ordinary_workflow", password="test", is_staff=True)
+        ordinary.groups.add(Group.objects.get(pk=GLOBAL_SALES))
+        from django.contrib.auth.models import Permission
+        view_codenames = [f"view_{model}" for model in (
+            "lead", "company", "contact", "request", "deal", "payment")]
+        ordinary.user_permissions.set(Permission.objects.filter(
+            content_type__app_label="crm", codename__in=view_codenames))
+
+        for record_type, fields in (
+                ("lead", {"first_name": "Denied", "email": "denied@example.test"}),
+                ("company", {"full_name": "Denied Co", "email": "denied@example.test"}),
+                ("contact", {"first_name": "Denied", "email": "denied@example.test",
+                              "company": self.acme.pk}),
+                ("request", {"request_for": "Denied request", "first_name": "Denied"}),
+                ("payment", {"deal": self.acme_deal.pk, "amount": "10"})):
+            rejected = self.validate(ordinary, plan(op(
+                "op1", "create", record_type, **fields)))
+            self.assertRejected(rejected, "permission denied")
+
+        deal_request = self.validate(ordinary, plan(op(
+            "op1", "create", "request", create_deal=True,
+            request_for="Denied deal", first_name="Denied", lead=self.lead.pk)))
+        self.assertRejected(deal_request, "permission denied")
+
+        payment = Payment.objects.create(deal=self.acme_deal, amount=1, currency_id=1)
+        for record_type, record_id, fields in (
+                ("lead", self.lead.pk, {"first_name": "Changed"}),
+                ("company", self.acme.pk, {"phone": "123"}),
+                ("contact", self.acme_contact.pk, {"first_name": "Changed"}),
+                ("request", self.acme_request.pk, {"request_for": "Changed"}),
+                ("deal", self.acme_deal.pk, {"amount": "12"}),
+                ("payment", payment.pk, {"amount": "12"})):
+            rejected = self.validate(ordinary, plan(op(
+                "op1", "update", record_type, record_id=record_id, **fields)))
+            self.assertRejected(rejected, "permission denied")
+
+        delete = self.validate(ordinary, {
+            "goal": "delete a lead", "operations": [{
+                "op_id": "op1", "action": "delete", "record_type": "lead",
+                "fields": [],
+            }],
+        })
+        self.assertRejected(delete, "malformed")
+
+        # Simulate a forged/previously approved action row: execution must
+        # recheck add permission independently of the approval state.
+        operation_id = str(uuid4())
+        forged_plan = {
+            "operation_id": operation_id, "goal": "forged approval",
+            "operations": [{
+                "op_id": "op1", "action": "create", "record_type": "lead",
+                "record_id": None, "target_ref": None, "create_deal": False,
+                "data": {"first_name": "Forged", "email": "forged@example.test"},
+                "links": {}, "display": {"title": "Create Lead"},
+            }],
+        }
+        ActionRequest.objects.create(
+            user=ordinary, operation_id=operation_id, action_type="SALES_WORKFLOW",
+            payload=forged_plan, status=ActionRequest.PENDING)
+        result = execute_plan(CrmAccess(ordinary), forged_plan)
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(Lead.objects.filter(email="forged@example.test").exists())
+
+        operation_id = str(uuid4())
+        forged_update = {
+            "operation_id": operation_id, "goal": "forged update approval",
+            "operations": [{
+                "op_id": "op1", "action": "update", "record_type": "company",
+                "record_id": self.acme.pk, "target_ref": None, "create_deal": False,
+                "data": {"phone": "999-9999"}, "links": {},
+                "display": {"title": f"Update Company #{self.acme.pk}"},
+            }],
+        }
+        ActionRequest.objects.create(
+            user=ordinary, operation_id=operation_id, action_type="SALES_WORKFLOW",
+            payload=forged_update, status=ActionRequest.PENDING)
+        result = execute_plan(CrmAccess(ordinary), forged_update)
+        self.assertEqual(result["status"], "failed")
+        self.acme.refresh_from_db()
+        self.assertEqual(self.acme.phone, "+1 555 0100")
 
 
 class MultiRecordWorkflowTests(WorkflowTestCase):
@@ -394,6 +550,23 @@ class ReviewRegressionTests(WorkflowTestCase):
             outcome = self.validate(self.manager, plan(op(
                 "op1", "update", "deal", record_id=self.acme_deal.pk, amount=value)))
             self.assertEqual(outcome.ok, accepted, (value, outcome.message))
+
+    def test_unsuccessful_deal_closure_side_effect_is_disclosed_before_approval(self):
+        payment = Payment.objects.create(
+            deal=self.acme_deal, amount=25, currency_id=1,
+            status=Payment.GUARANTEED)
+        reason = ClosingReason.objects.create(
+            name="Audit unsuccessful reason", department_id=GLOBAL_SALES,
+            index_number=99, success_reason=False)
+        outcome = self.validate(self.manager, plan(op(
+            "op1", "update", "deal", record_id=self.acme_deal.pk,
+            closing_reason=reason.name)))
+        self.assertTrue(outcome.ok, outcome.message)
+        payload = approval_payload(outcome.plan)
+        self.assertTrue(any(
+            "deletes its payments that were not received" in warning
+            for warning in payload["operations"][0]["warnings"]))
+        self.assertTrue(Payment.objects.filter(pk=payment.pk).exists())
 
 
 class PaymentWorkflowTests(WorkflowTestCase):

@@ -692,6 +692,18 @@ _OPTION_MODELS = {
     "products": Product,
 }
 
+# Some reference models (notably Stage) have no standalone view permission in
+# the CRM's group policy. Their values are nevertheless available in a model
+# form to users who can operate on the consuming record type. Product is a
+# full CRM record type and therefore keeps its own view-permission check.
+_OPTION_CONSUMERS = {
+    "stages": (Deal,),
+    "lead_sources": (Lead, Company, Contact, Request),
+    "closing_reasons": (Deal,),
+    "client_types": (Company, Lead),
+    "industries": (Company, Lead),
+}
+
 
 @tool
 @crm_read_tool
@@ -716,6 +728,23 @@ def list_crm_options(kind: str, query: str = "", *, config: RunnableConfig) -> s
     if model is None:
         return ("ERROR: kind must be one of "
                 + ", ".join([*_OPTION_MODELS, "currencies", "payment_statuses", "countries"]) + ".")
+    consumers = _OPTION_CONSUMERS.get(kind, ())
+    try:
+        model_view_allowed = access.can_view(model)
+    except PermissionDenied:
+        # Some CRM reference models are intentionally not registered as
+        # standalone admin pages; their choices follow consumer permissions.
+        model_view_allowed = False
+
+    def can_use_consumer(consumer):
+        try:
+            return access.can_view(consumer) or access.can_add(consumer)
+        except PermissionDenied:
+            return False
+
+    if not model_view_allowed and not any(map(can_use_consumer, consumers)):
+        raise PermissionDenied(
+            f"You do not have permission to view {model._meta.verbose_name_plural}.")
     qs = model.objects.all()
     if department_id:
         qs = qs.filter(department_id=department_id)

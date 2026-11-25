@@ -241,17 +241,19 @@ For a typical local SQLite development setup:
    # Alternatively, use GOOGLE_API_KEY instead of GEMINI_API_KEY.
    GROQ_API_KEY=...
    # optional
-   GEMINI_MODEL=gemini-2.5-flash
-   GEMINI_FALLBACK_MODEL=gemini-2.0-flash
+   GEMINI_MODEL=gemini-3.5-flash
+   GEMINI_FALLBACK_MODEL=gemini-3.8-flash
    GROQ_MODEL=openai/gpt-oss-20b
    AI_ASSISTANT_MAX_TOKENS=2048
    ```
 
-   Gemini is tried first, then the Gemini fallback model, then Groq. Set both
-   provider keys to enable the full fallback chain. The current code constructs
-   Gemini before Groq, so a Groq key alone is not sufficient. Django can start
-   without LLM keys, but AI requests cannot. Restart Django after changing
-   `.env`; the variables are loaded when the assistant module is imported.
+   The default model order is Gemini 3.5 Flash, Gemini 3.8 Flash, then Groq.
+   `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL` can override the Gemini defaults;
+   `GROQ_MODEL` can override the Groq model. Set both provider keys to enable
+   the full fallback chain. The current code constructs Gemini before Groq, so
+   a Groq key alone is not sufficient. Django can start without LLM keys, but
+   AI requests cannot. Restart Django after changing `.env`; the variables are
+   loaded when the assistant module is imported.
 
 5. For a new, empty local database, apply migrations and load the starter data:
 
