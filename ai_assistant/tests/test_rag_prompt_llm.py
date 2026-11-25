@@ -152,9 +152,10 @@ class LlmFallbackTests(SimpleTestCase):
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key"},
                 clear=True)
     def test_gemini_provider_defaults(self):
-        gemini, gemini_fallback, _groq = build_providers(tools)
+        gemini, gemini_fallback, groq = build_providers(tools)
         self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-3.5-flash")
         self.assertEqual(gemini_fallback.bound.model.split("/")[-1], "gemini-3.8-flash")
+        self.assertEqual(groq.bound.model, "llama-3.3-70b-versatile")
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key",
                              "GEMINI_MODEL": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"})

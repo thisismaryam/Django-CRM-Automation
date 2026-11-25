@@ -93,6 +93,12 @@ gate does not grant access to CRM records: read tools use the CRM admin's
 `has_view_permission` and `get_queryset`, while workflow creates and updates
 use `has_add_permission` / `has_change_permission`, CRM forms, and save logic.
 Updates and linked records are checked again when an approved plan executes.
+An ordinary user may use schema RAG without record permissions. Live record
+reads require the applicable CRM `view` permission and remain subject to the
+CRM admin queryset. Creating or changing records requires the corresponding
+CRM add/change permission and validation. An approval card is not a permission
+grant: the account and each record are checked again when an approved plan is
+executed. Delete is not an assistant operation.
 
 Users belong to departments through Django group membership. A Department is
 also a Group; role groups such as `managers` grant permissions, while a
@@ -114,11 +120,19 @@ reference choices returned by `list_crm_options` (countries, currencies, and
 payment statuses) are global; department-specific choices are filtered when
 the user has a department.
 
+The assistant treats live CRM questions as database questions: it must use an
+authorized read tool and report an empty result as not found. Schema answers
+come from the schema catalog and must not be presented as live-record results.
+Standalone greetings are answered locally with a short capability description
+and do not call an LLM provider. The greeting contains no example company or
+sample CRM record. Do not use illustrative company names, IDs, emails, amounts,
+or relationships as though they were real CRM data.
+
 ### Components and files
 
 | Path | Responsibility |
 | --- | --- |
-| `ai_assistant/agent.py` | LangGraph graph: `agent` (LLM reasoning/routing) → `read_tools` or `plan_review` → `approval` (interrupt) → `execute` → `report`. System prompt and SQLite checkpointer. |
+| `ai_assistant/agent.py` | LangGraph graph: `agent` (LLM reasoning/routing) → `read_tools` or `plan_review` → `approval` (interrupt) → `execute` → `report`. Includes deterministic standalone greeting handling, system prompt, provider-failure message, and SQLite checkpointer. |
 | `ai_assistant/access.py` | Permission and department scoping. Builds a server-side request for the authenticated user and delegates to the CRM's registered ModelAdmins (`get_queryset`, `has_view/add/change_permission`, forms, `save_model`/`save_related`). |
 | `ai_assistant/read_tools.py` | Read tools: `search_leads`, `search_companies`, `search_contacts`, `search_requests`, `search_deals`, `search_payments`, `get_crm_record`, `sales_summary`, `list_crm_options`, `list_departments`. |
 | `ai_assistant/workflow.py` | Workflow plan contract, validation (permissions, references, business rules, CRM admin form validation, duplicates, inferred values), approval payload, atomic and idempotent execution, result report. |
@@ -171,18 +185,38 @@ the user has a department.
 7. `report` returns an exact summary of what was saved (with links) or why
    nothing was saved. No LLM call is needed for it.
 
-### Supported operations
+### Assistant record-operation coverage
 
-| Record | Create | Update |
-| --- | --- | --- |
-| Lead | yes (inherits company details when linked to a company) | yes |
-| Company | yes | yes |
-| Contact | yes (needs a company) | yes |
-| Request | yes, optionally processed into a Deal | yes, including processing an existing pending request into a Deal |
-| Deal | no, created from a Request | yes (amount, stage, next step, probability, closing, etc.) |
-| Payment | yes | yes |
+| CRM record type | Read | Create | Update | Delete |
+| --- | --- | --- | --- | --- |
+| Lead | Yes, with CRM view permission and queryset scope | Yes | Yes, subject to record-level CRM rules | No assistant operation |
+| Company | Yes, with CRM view permission and queryset scope | Yes | Yes, subject to record-level CRM rules | No assistant operation |
+| Contact | Yes, with CRM view permission and queryset scope | Yes; requires a Company | Yes, subject to record-level CRM rules | No assistant operation |
+| Request | Yes, with CRM view permission and queryset scope | Yes; may create its Deal through the CRM workflow | Yes; may process an eligible pending Request into a Deal | No assistant operation |
+| Deal | Yes, with CRM view permission and queryset scope | Not directly; created from a Request | Yes, subject to CRM rules | No assistant operation |
+| Payment | Yes, with CRM view permission and queryset scope | Yes, subject to CRM rules | Yes, subject to CRM rules | No assistant operation |
 
-Deletes and lead conversion stay in the regular CRM interface.
+The assistant also exposes schema search, department and reference-option
+lookups, and sales summaries. These are not additional CRUD operations on CRM
+records. Delete operations and Lead conversion remain in the regular CRM UI;
+the assistant does not expose a delete tool or delete workflow.
+
+### Admin Request-to-Deal workflow
+
+A superuser does not need to be added to a sales department to create a
+Request. If the admin creates a Deal from a Request without a home department,
+the workflow resolves its owner and department from the linked Contact or
+Lead (or from the existing Request when processing it). The inferred values
+are shown for human approval, and the CRM's own validation and save hooks still
+run. If a department or owner cannot be resolved for the Deal, validation
+rejects the plan without saving it. Both sides of the Request/Deal link are
+created through the CRM's Request processing behavior. A plan has a unique
+operation ID and can execute only once; replaying an already processed plan
+does not create a duplicate.
+
+This rule is specific to Request-to-Deal processing. It does not grant a
+superuser an implicit department for unrelated new records; ordinary CRM owner
+and department assignment rules continue to apply.
 
 ### Conversation context and persistence
 
@@ -237,23 +271,29 @@ For a typical local SQLite development setup:
    ignored by Git):
 
    ```
-   GEMINI_API_KEY=...
-   # Alternatively, use GOOGLE_API_KEY instead of GEMINI_API_KEY.
+   # Add the keys for the providers you want enabled; missing providers are skipped.
    GROQ_API_KEY=...
-   # optional
-   GEMINI_MODEL=gemini-3.5-flash
-   GEMINI_FALLBACK_MODEL=gemini-3.8-flash
-   GROQ_MODEL=openai/gpt-oss-20b
+   GEMINI_API_KEY=...
+   CLOUDFLARE_API_TOKEN=...
+   CLOUDFLARE_ACCOUNT_ID=...
+   OPENROUTER_API_KEY=...
+   # optional model/order overrides
+   LLM_PROVIDER_ORDER=groq,gemini,cloudflare,openrouter
+   GROQ_MODELS=openai/gpt-oss-120b,openai/gpt-oss-20b
+   GEMINI_MODEL=gemini-3.8-flash
+   CLOUDFLARE_MODEL=@cf/openai/gpt-oss-120b
+   OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct
    AI_ASSISTANT_MAX_TOKENS=2048
    ```
 
-   The default model order is Gemini 3.5 Flash, Gemini 3.8 Flash, then Groq.
-   `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL` can override the Gemini defaults;
-   `GROQ_MODEL` can override the Groq model. Set both provider keys to enable
-   the full fallback chain. The current code constructs Gemini before Groq, so
-   a Groq key alone is not sufficient. Django can start without LLM keys, but
-   AI requests cannot. Restart Django after changing `.env`; the variables are
-   loaded when the assistant module is imported.
+   The provider manager tries the configured providers in `LLM_PROVIDER_ORDER`.
+   It briefly skips providers that return rate-limit or availability errors.
+   Groq's two GPT-OSS models share one API key and rate-limit circuit. The
+   Cloudflare API token needs Workers AI access, and its account ID is required
+   to build the endpoint URL. OpenRouter uses the listed tool-capable Llama
+   model by default. Install the AI requirements after changing them. Restart
+   Django after editing `.env`; settings are read when the LLM manager is
+   initialized. Standalone greetings do not call a provider.
 
 5. For a new, empty local database, apply migrations and load the starter data:
 
@@ -325,6 +365,9 @@ python manage.py test ai_assistant
 The assistant tests use the CRM's real group permissions and departments and
 replace only the LLM with a scripted stand-in. They cover:
 
+- deterministic greetings that do not call an LLM provider;
+- schema RAG without CRM record permissions and read tools with explicit view
+  permissions;
 - reads and department scoping;
 - permission enforcement;
 - every create/update operation;
@@ -334,6 +377,10 @@ replace only the LLM with a scripted stand-in. They cover:
 - resuming after a restart;
 - multi-record transactions and rollback;
 - duplicate-execution protection;
+- superuser Request creation without sales-department membership, including
+  Request-to-Deal department/owner inference and one-time execution;
+- ordinary read-only users being unable to write, including forged or approved
+  plans;
 - cross-user isolation;
 - document uploads;
 - graph routing;

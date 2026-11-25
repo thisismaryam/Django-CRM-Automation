@@ -8,7 +8,7 @@
     approval    --(approved)-> execute -> report -> END
                 --(rejected)-------------> report -> END
 
-* ``agent``       LLM reasoning and routing (Gemini -> Gemini -> Groq).
+* ``agent``       LLM reasoning and routing (Groq; Gemini temporarily paused).
 * ``read_tools``  permission-scoped CRM reads and schema RAG.
 * ``plan_review`` business validation of the proposed multi-record plan;
                   stores the plan (with a unique operation id) in graph state.

@@ -4,7 +4,9 @@ from langchain_core.messages import BaseMessage, HumanMessage
 
 
 MAX_HISTORY_TURNS = 3
-MAX_HISTORY_CHARS = 10000
+# Bound multi-turn context to about 1,500-2,000 tokens including JSON/message
+# overhead, while retaining up to three complete recent user turns.
+MAX_HISTORY_CHARS = 6000
 
 
 def trim_conversation_history(messages: list[BaseMessage]) -> list[BaseMessage]:
