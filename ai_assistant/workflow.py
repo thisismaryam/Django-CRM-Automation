@@ -26,10 +26,11 @@ operation with ``create_deal=true``.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
@@ -45,12 +46,30 @@ from ai_assistant.access import SALES_MODELS, CrmAccess, record_url
 from ai_assistant.models import ActionRequest
 from common.models import Department
 from common.utils.helpers import get_delta_date, get_department_id
+from crm.models.others import ClosingReason
 from crm.models import (
-    Company, Contact, Currency, Deal, Lead, Payment, Product, Request, Stage,
+    Company, Contact, Currency, Deal, Lead, Payment, Product,
+    Request, Stage,
 )
 from crm.settings import FIRST_STEP
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_APPROVAL_TTL_MINUTES = 60
+
+
+def approval_ttl() -> timedelta:
+    """How long a plan may wait for approval (AI_ASSISTANT_APPROVAL_TTL_MINUTES,
+    default 60). After that it can no longer be executed."""
+    try:
+        minutes = int(os.environ.get("AI_ASSISTANT_APPROVAL_TTL_MINUTES",
+                                     DEFAULT_APPROVAL_TTL_MINUTES))
+    except ValueError:
+        minutes = DEFAULT_APPROVAL_TTL_MINUTES
+    if minutes <= 0:
+        minutes = DEFAULT_APPROVAL_TTL_MINUTES
+    return timedelta(minutes=minutes)
+
 
 PLAN_TOOL_NAME = "propose_sales_workflow"
 MAX_OPERATIONS = 10
@@ -212,6 +231,10 @@ class PlannedOp:
     changes: dict[str, dict[str, str]] = field(default_factory=dict)
     existing_label: str = ""
     cleaned: dict[str, Any] = field(default_factory=dict)   # validated form values
+    # update only: current raw values of the fields the plan touches, taken
+    # when the approval card was generated. Execution refuses to overwrite a
+    # record whose values no longer match.
+    original: dict[str, Any] | None = None
 
     @property
     def model(self):
@@ -228,6 +251,7 @@ class PlannedOp:
             "record_id": self.record_id, "target_ref": self.target_ref,
             "create_deal": self.create_deal, "data": self.data,
             "links": self.links,
+            "original": self.original,
             "display": {
                 "title": self.title(), "fields": self.shown_fields,
                 "changes": self.changes, "related": self.related,
@@ -259,6 +283,37 @@ class PlanValidation:
 # ---------------------------------------------------------------------------
 # small helpers
 # ---------------------------------------------------------------------------
+
+_GUARD_FIELDS = {
+    "request": ["deal", "pending", "duplicate", "case"],
+    "deal": ["stage"],
+}
+
+
+def _snapshot(instance, names) -> dict[str, Any]:
+    """Raw, comparable current values of ``names`` on a saved record."""
+    snap: dict[str, Any] = {}
+    for name in dict.fromkeys(names):
+        try:
+            field_obj = instance._meta.get_field(name)
+        except FieldDoesNotExist:
+            continue
+        if field_obj.many_to_many:
+            snap[name] = sorted(getattr(instance, name).values_list("pk", flat=True))
+        elif field_obj.is_relation:
+            snap[name] = getattr(instance, f"{field_obj.name}_id")
+        else:
+            value = getattr(instance, name, None)
+            snap[name] = None if value is None else str(value)
+    return snap
+
+
+def _changed_since(instance, original: dict[str, Any]) -> list[str]:
+    """Human-readable list of fields that differ from the approved snapshot."""
+    now = _snapshot(instance, list(original))
+    return [f"{name}: was {original[name]!r}, now {now.get(name)!r}"
+            for name in original if now.get(name) != original[name]]
+
 
 def _verbose(model, name: str) -> str:
     try:
@@ -413,6 +468,7 @@ class _PlanValidator:
             "operation_id": str(uuid.uuid4()),
             "goal": self.goal,
             "created_at": timezone.now().isoformat(),
+            "expires_at": (timezone.now() + approval_ttl()).isoformat(),
             "user_id": self.access.user.pk,
             "operations": [op.to_dict() for op in self.ops.values()],
             "warnings": self.plan_warnings,
@@ -440,6 +496,13 @@ class _PlanValidator:
         allowed = FIELD_POLICY[(op.record_type, op.action)]
         for item in spec.fields:
             name = item.name.strip().lower()
+            if name == "department" and name not in allowed:
+                # Departments are never set by the agent: the CRM assigns the
+                # user's own. Naming that same department is harmless (the
+                # user simply said what will happen anyway); naming another
+                # one is refused with an explanation, never applied.
+                self._own_department_only(item.value)
+                continue
             if name not in allowed:
                 raise PlanError(
                     f"field {item.name!r} cannot be set on {op.action} "
@@ -468,6 +531,9 @@ class _PlanValidator:
         # values onto the instance.
         before = {name: _display(getattr(instance, name, ""))
                   for name in op.provided} if instance.pk else {}
+        if op.action == "update" and instance.pk:
+            op.original = _snapshot(instance, [
+                *op.provided, *op.links, *_GUARD_FIELDS.get(op.record_type, [])])
         self._business_rules(op, instance)
         if op.missing or op.errors:
             return
@@ -476,6 +542,21 @@ class _PlanValidator:
             return
         self._duplicates(op, instance)
         self._describe(op, instance, before)
+
+    def _own_department_only(self, value: str) -> None:
+        access = self.access
+        own = Department.objects.filter(pk=access.home_department_id).first() \
+            if access.home_department_id else None
+        text = str(value).strip()
+        if own is not None and (text.lower() == own.name.lower()
+                                or text == str(own.pk)):
+            return
+        raise PlanError(
+            f"department {text!r} cannot be set: new records and deals always "
+            + (f"belong to your own department ({own.name}); do not send a "
+               "department field." if own else
+               "get their department from the linked records or your account; "
+               "do not send a department field."))
 
     def _target_instance(self, op: PlannedOp, spec: OperationSpec):
         model = op.model
@@ -501,8 +582,9 @@ class _PlanValidator:
                 raise PermissionDenied("you are not allowed to change deals")
             op.target_ref = ref
             department_id = access.home_department_id
+            owner = access.user
             return Deal(
-                department_id=department_id, owner=access.user,
+                department_id=department_id, owner=owner,
                 stage=Stage.objects.filter(department_id=department_id,
                                            default=True).first(),
             )
@@ -740,13 +822,26 @@ class _PlanValidator:
                 "to create a deal, link the request to a contact or a lead "
                 "(existing id or one created earlier in this plan). Search first; "
                 "create a lead or contact if the person is new.")
-        if department and department.works_globally and "country" not in op.data:
-            country = (instance.country_id if op.action == "update" and instance.country_id
-                       else self._counterparty_country(
-                           contact, lead, company, contact_op, lead_op, company_op))
+        if department and department.works_globally and not op.data.get("country"):
+            country = instance.country_id if op.action == "update" else None
+            country_source = "kept from the existing Request" if country else None
+            if not country:
+                country = self._counterparty_country(
+                    contact, lead, company, contact_op, lead_op, company_op)
+                if country:
+                    country_source = "taken from the linked counterparty"
             if country:
                 op.data["country"] = str(country)
-                op.inferred["Country"] = "taken from the linked counterparty"
+                op.inferred["Country"] = country_source
+            else:
+                op.errors.append(
+                    f"{department} works globally, so the deal needs a country, and the "
+                    "linked contact, lead or company has none. Ask the user for the "
+                    "country (it is only used when they name one), or add it to that "
+                    "record first.")
+        setup_problem = _stage_setup_error(deal_department_id)
+        if setup_problem:
+            op.errors.append(setup_problem)
         if op.action == "update":
             for name in ("country", "products"):
                 if name not in op.data:
@@ -769,27 +864,41 @@ class _PlanValidator:
     def _counterparty_country(self, contact, lead, company,
                               contact_op, lead_op, company_op):
         """Country of the request's counterparty, existing or planned."""
-        if contact is not None:
+        if contact is not None and contact.company_id and contact.company.country_id:
             return contact.company.country_id
-        if lead is not None:
+        if lead is not None and lead.country_id:
             return lead.country_id
-        if company is not None:
+        if company is not None and company.country_id:
             return company.country_id
         if contact_op is not None:
             link = contact_op.links.get("company")
             if isinstance(link, int):
-                return Company.objects.get(pk=link).country_id
+                country_id = Company.objects.get(pk=link).country_id
+                if country_id:
+                    return country_id
             if isinstance(link, str):
-                return self.ops[link[1:]].data.get("country")
+                country_id = self.ops[link[1:]].data.get("country")
+                if country_id:
+                    return country_id
         if lead_op is not None:
-            return lead_op.data.get("country")
+            country_id = lead_op.data.get("country")
+            if country_id:
+                return country_id
         if company_op is not None:
-            return company_op.data.get("country")
+            country_id = company_op.data.get("country")
+            if country_id:
+                return country_id
         return None
 
     def _deal_rules(self, op: PlannedOp, instance) -> None:
         if self.access.user.groups.filter(name="chiefs").exists() and not self.access.user.is_superuser:
             op.errors.append("chiefs can view deals but their key fields are read-only.")
+        if not op.target_ref:
+            # A deal planned in this same plan is checked by its request op.
+            setup_problem = _stage_setup_error(
+                instance.department_id, closing="closing_reason" in op.data)
+            if setup_problem:
+                op.errors.append(setup_problem)
         if instance.stage_id and "stage" not in op.data:
             default_stage = Stage.objects.filter(
                 department_id=instance.department_id, default=True).first()
@@ -818,6 +927,21 @@ class _PlanValidator:
             currency = deal.currency
         else:
             currency = _plan_default_currency(access)
+        if op.action == "create":
+            if deal is not None and not deal.amount:
+                op.warnings.append(
+                    f"deal #{deal.pk} has no amount, so the payment share will show "
+                    "'No deal amount'. Set the deal amount (ask the user) so the "
+                    "share can be calculated.")
+            elif deal_op is not None and not any(
+                    other.target_ref == f"${deal_op.op_id}.deal"
+                    and _positive(other.data.get("amount"))
+                    for other in self.ops.values()):
+                op.warnings.append(
+                    "the new deal has no amount, so the payment's share of the deal "
+                    "would show 'No deal amount'. Ask the user for the deal amount "
+                    "and add it to the deal (update deal with record_id "
+                    f"${deal_op.op_id}.deal); never guess it.")
         if op.action == "create" and "currency" not in op.data:
             if currency is None:
                 op.missing.append("currency")
@@ -911,59 +1035,10 @@ class _PlanValidator:
     def _duplicates(self, op: PlannedOp, instance) -> None:
         if op.action != "create":
             return
-        access = self.access
-        data = op.data
-        if op.record_type in ("lead", "contact"):
-            for email in _emails(data.get("email")):
-                same = Q(email__icontains=email) | Q(secondary_email__iexact=email)
-                own_model = op.model
-                other_model = Contact if own_model is Lead else Lead
-                if access.can_view(own_model):
-                    dup = access.queryset(own_model).filter(same).first()
-                    if dup is not None:
-                        op.errors.append(
-                            f"duplicate: {own_model._meta.verbose_name} #{dup.pk} "
-                            f"({dup.full_name}) already uses {email}. Update or link "
-                            "that record instead of creating a new one.")
-                if access.can_view(other_model):
-                    other = access.queryset(other_model).filter(same).first()
-                    if other is not None:
-                        op.warnings.append(
-                            f"{other_model._meta.verbose_name} #{other.pk} "
-                            f"({other.full_name}) already uses {email}.")
-        elif op.record_type == "company":
-            name = data.get("full_name", "")
-            candidates = access.queryset(Company).filter(
-                Q(full_name__iexact=name) | Q(alternative_names__icontains=name))
-            for company in candidates:
-                aliases = {a.strip().lower() for a in company.alternative_names.split(",")}
-                if company.full_name.lower() == name.lower() or name.lower() in aliases:
-                    op.errors.append(
-                        f"duplicate: company #{company.pk} ({company.full_name}) "
-                        "already exists. Link it instead of creating a new company.")
-                    break
-        elif op.record_type == "request" and data.get("request_for"):
-            same = access.queryset(Request).filter(
-                pending=True, request_for__iexact=data["request_for"])
-            if data.get("email"):
-                same = same.filter(email__iexact=data["email"])
-            dup = same.first()
-            if dup is not None:
-                op.warnings.append(
-                    f"pending request #{dup.pk} has the same subject"
-                    + (" and email" if data.get("email") else "")
-                    + "; this may be a duplicate.")
-        elif op.record_type == "payment":
-            deal_id = op.links.get("deal")
-            if isinstance(deal_id, int):
-                dup = access.queryset(Payment).filter(
-                    deal_id=deal_id, amount=Decimal(data["amount"]),
-                    payment_date=data.get("payment_date") or timezone.localdate(),
-                ).first()
-                if dup is not None:
-                    op.warnings.append(
-                        f"payment #{dup.pk} of the same amount and date already "
-                        "exists on this deal.")
+        errors, warnings = _duplicate_findings(
+            self.access, op.record_type, op.data, op.links)
+        op.errors.extend(errors)
+        op.warnings.extend(warnings)
 
     # -- approval card content ------------------------------------------
 
@@ -996,7 +1071,8 @@ class _PlanValidator:
         if op.target_ref:
             source = self.ops[_REF_RE.match(op.target_ref).group("op")]
             op.related["Deal"] = f"the new deal created by {source.op_id}"
-        if op.action == "update" and not op.changes and not op.links and not op.create_deal:
+        if (op.action == "update" and not op.changes and not op.links
+                and not op.create_deal and not op.target_ref):
             op.warnings.append("These values are already set; nothing will change.")
 
     def _cross_plan_checks(self) -> None:
@@ -1018,6 +1094,109 @@ class _PlanValidator:
             if op.record_type == "company" and op.action == "create" and op.op_id not in used:
                 self.plan_warnings.append(
                     f"{op.op_id} creates a company that no other operation links to.")
+
+
+def _positive(value) -> bool:
+    try:
+        return Decimal(str(value)) > 0
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+
+def _stage_setup_error(department_id, *, closing: bool = False) -> str:
+    """Why the CRM could not pick the deal's stage, or "".
+
+    The CRM looks the default stage up with ``Stage.objects.get`` when it saves
+    a deal, which fails with "Stage matching query does not exist" if the
+    department has none (or several). Checking first gives a clear message
+    instead of a crash. The assistant never creates stages."""
+    if not department_id:
+        return ("the deal has no department, so the CRM cannot choose its default "
+                "stage.")
+    name = Department.objects.filter(pk=department_id).values_list("name", flat=True).first()
+    name = name or f"department #{department_id}"
+    defaults = Stage.objects.filter(default=True, department_id=department_id).count()
+    if defaults != 1:
+        return (f"{name} has {defaults} default Deal stages; the CRM needs exactly one, "
+                "so the deal cannot be saved. An "
+                "administrator must set up the stages for this department (the "
+                "assistant never creates stages).")
+    if closing:
+        wins = Stage.objects.filter(success_stage=True, department_id=department_id).count()
+        reasons = ClosingReason.objects.filter(
+            success_reason=True, department_id=department_id).count()
+        if wins != 1 or reasons != 1:
+            return (f"{name} needs exactly one success stage and one success closing "
+                    "reason to close a deal as won; an administrator must configure them.")
+    return ""
+
+
+def _email_match_q(email: str) -> Q:
+    """Exact, case-insensitive match of one whole address in ``email`` or
+    ``secondary_email`` (either may hold a comma-separated list). A substring
+    such as ``eo@x.com`` never matches ``leo@x.com``."""
+    pattern = r"(^|,)\s*" + re.escape(email.strip()) + r"\s*(,|$)"
+    return Q(email__iregex=pattern) | Q(secondary_email__iregex=pattern)
+
+
+def _duplicate_findings(access: CrmAccess, record_type: str, data: dict,
+                        links: dict) -> tuple[list[str], list[str]]:
+    """(errors, warnings) for a record about to be created. Used when the plan
+    is validated and again right before it executes."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    if record_type in ("lead", "contact"):
+        own_model = Lead if record_type == "lead" else Contact
+        other_model = Contact if own_model is Lead else Lead
+        for email in _emails(data.get("email")):
+            same = _email_match_q(email)
+            if access.can_view(own_model):
+                dup = access.queryset(own_model).filter(same).first()
+                if dup is not None:
+                    errors.append(
+                        f"duplicate: {own_model._meta.verbose_name} #{dup.pk} "
+                        f"({dup.full_name}) already uses {email}. Update or link "
+                        "that record instead of creating a new one.")
+            if access.can_view(other_model):
+                other = access.queryset(other_model).filter(same).first()
+                if other is not None:
+                    warnings.append(
+                        f"{other_model._meta.verbose_name} #{other.pk} "
+                        f"({other.full_name}) already uses {email}.")
+    elif record_type == "company":
+        name = data.get("full_name", "")
+        candidates = access.queryset(Company).filter(
+            Q(full_name__iexact=name) | Q(alternative_names__icontains=name))
+        for company in candidates:
+            aliases = {a.strip().lower() for a in company.alternative_names.split(",")}
+            if company.full_name.lower() == name.lower() or name.lower() in aliases:
+                errors.append(
+                    f"duplicate: company #{company.pk} ({company.full_name}) "
+                    "already exists. Link it instead of creating a new company.")
+                break
+    elif record_type == "request" and data.get("request_for"):
+        same = access.queryset(Request).filter(
+            pending=True, request_for__iexact=data["request_for"])
+        if data.get("email"):
+            same = same.filter(email__iexact=data["email"])
+        dup = same.first()
+        if dup is not None:
+            warnings.append(
+                f"pending request #{dup.pk} has the same subject"
+                + (" and email" if data.get("email") else "")
+                + "; this may be a duplicate.")
+    elif record_type == "payment":
+        deal_id = links.get("deal")
+        if isinstance(deal_id, int):
+            dup = access.queryset(Payment).filter(
+                deal_id=deal_id, amount=Decimal(data["amount"]),
+                payment_date=data.get("payment_date") or timezone.localdate(),
+            ).first()
+            if dup is not None:
+                warnings.append(
+                    f"payment #{dup.pk} of the same amount and date already "
+                    "exists on this deal.")
+    return errors, warnings
 
 
 def _post_for(op: PlannedOp | dict, access: CrmAccess) -> dict:
@@ -1048,6 +1227,10 @@ def validate_plan(access: CrmAccess, args: dict, *, thread_id: str = "") -> Plan
         proposal = ProposeWorkflowInput.model_validate(args)
     except Exception as exc:  # pydantic.ValidationError
         return PlanValidation(False, message=f"ERROR: the proposal is malformed: {exc}")
+    try:
+        access.require_scope()
+    except PermissionDenied as exc:
+        return PlanValidation(False, message=f"PERMISSION_DENIED: {exc}")
     outcome = _PlanValidator(access, proposal.goal, proposal.operations).run()
     if outcome.ok:
         ActionRequest.objects.create(
@@ -1070,6 +1253,7 @@ def approval_payload(plan: dict) -> dict:
     return {
         "action": "SALES_WORKFLOW",
         "operation_id": plan["operation_id"],
+        "expires_at": plan.get("expires_at"),
         "goal": plan["goal"],
         "record_type": ", ".join(op["display"]["title"] for op in plan["operations"]),
         "operations": operations,
@@ -1099,6 +1283,17 @@ def execute_plan(access: CrmAccess, plan: dict) -> dict:
                 "error": "This approval does not belong to your account."}
     if record.status != ActionRequest.PENDING:
         return _already_processed(record, base)
+    if is_expired(record):
+        report = {**base, "status": "expired", "results": _rolled_back(plan, ""),
+                  "error": "This approval expired before it was approved."}
+        ActionRequest.objects.filter(
+            pk=record.pk, status=ActionRequest.PENDING).update(
+            status=ActionRequest.FAILED, result=report, decided_at=timezone.now())
+        return report
+    try:
+        access.require_scope()
+    except PermissionDenied as exc:
+        return mark_failed(access.user.pk, plan, f"Permission denied: {exc}")
 
     results: list[dict] = []
     try:
@@ -1153,6 +1348,27 @@ class _AlreadyClaimed(Exception):
     pass
 
 
+def is_expired(record: ActionRequest) -> bool:
+    """Pending approvals older than the TTL can no longer be executed."""
+    return timezone.now() - record.created_at > approval_ttl()
+
+
+def expire_pending(*, dry_run: bool = False) -> int:
+    """Close PENDING plans older than the TTL (status FAILED, result.status
+    "expired"). Returns how many were (or would be) closed. Never touches CRM
+    records."""
+    cutoff = timezone.now() - approval_ttl()
+    stale = ActionRequest.objects.filter(
+        status=ActionRequest.PENDING, created_at__lt=cutoff)
+    count = stale.count()
+    if not dry_run and count:
+        stale.update(
+            status=ActionRequest.FAILED, decided_at=timezone.now(),
+            result={"status": "expired",
+                    "error": "This approval expired before it was approved."})
+    return count
+
+
 def _already_processed(record: ActionRequest, base: dict) -> dict:
     previous = record.result or {}
     return {**previous, **base, "status": "already_processed",
@@ -1187,6 +1403,9 @@ def format_report(result: dict) -> str:
         if result.get("reason"):
             text += f" ({result['reason']})"
         return text
+    if status == "expired":
+        return ("This approval expired, so nothing was changed in the CRM. "
+                "Please ask again and approve the new plan.")
     if status == "already_processed":
         return ("This plan was already processed earlier "
                 f"({str(result.get('previous_status', '')).lower()}); nothing was run again.")
@@ -1236,13 +1455,38 @@ def _execute_operation(access: CrmAccess, op: dict, produced: dict) -> dict:
             if instance is None:
                 raise OperationFailed(op_id, "The referenced deal was not created.")
         else:
-            instance = access.get_visible(model, op["record_id"])
+            instance = access.get_visible(model, op["record_id"], lock=True)
             if instance is None:
                 raise OperationFailed(op_id, f"{model._meta.verbose_name} "
                                              f"#{op['record_id']} is no longer accessible.")
         if not access.can_change(instance):
             raise OperationFailed(op_id, f"You can no longer change this "
                                          f"{model._meta.verbose_name}.")
+        if not op["target_ref"]:
+            # Never overwrite data that changed after the approval card was
+            # generated: the record must still match what the user approved.
+            original = op.get("original")
+            if original is None:
+                raise OperationFailed(op_id, (
+                    "This plan has no saved snapshot of the record, so it cannot "
+                    "be checked for changes. Nothing was saved; please ask again."))
+            changed = _changed_since(instance, original)
+            if changed:
+                raise OperationFailed(op_id, (
+                    f"{model._meta.verbose_name.capitalize()} #{instance.pk} was "
+                    "changed after this approval card was generated ("
+                    + "; ".join(changed) + "). Nothing was saved; please ask "
+                    "again so you can review the current values."))
+    # Business-rule permissions that were checked when the plan was proposed.
+    if (op["create_deal"] or op["target_ref"]) \
+            and not access.user.has_perm("crm.change_deal"):
+        raise OperationFailed(op_id, "You can no longer create or change deals.")
+    if not is_update and record_type in ("lead", "contact", "company", "request", "payment"):
+        errors, _warnings = _duplicate_findings(
+            access, record_type, op["data"],
+            {k: v for k, v in op["links"].items() if isinstance(v, int)})
+        if errors:
+            raise OperationFailed(op_id, "; ".join(errors))
 
     # 2. Form data with links resolved to real, visible records.
     data = dict(op["data"])

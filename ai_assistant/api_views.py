@@ -20,7 +20,8 @@ from rest_framework.decorators import (
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
-from ai_assistant.agent import get_app
+from ai_assistant.agent import get_app, is_simple_greeting
+from ai_assistant.conversation import is_continuation_reply
 from ai_assistant.documents.extract import extract_text_from_file
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,18 @@ def chat_view(request):
         # A new message while a plan waits for approval means the user moved
         # on (e.g. to correct it): reject the pending plan first. Rejection
         # never writes CRM data.
-        pending = _snapshot_interrupt(app.get_state(config))
+        snapshot = app.get_state(config)
+        pending = _snapshot_interrupt(snapshot)
+        # A bare "skip"/"yes" answers the assistant's last question: it
+        # continues the earlier request instead of replacing it. (Not when it
+        # was typed instead of answering an approval card.)
+        latest_reply = ""
+        previous_task = (getattr(snapshot, "values", None) or {}).get("original_request", "")
+        if (pending is None and not uploaded_file and previous_task
+                and not is_simple_greeting(previous_task)
+                and is_continuation_reply(message)):
+            latest_reply = message.strip()
+            original_request = previous_task
         if pending is not None:
             app.invoke(Command(resume={
                 "decision": "rejected",
@@ -203,6 +215,7 @@ def chat_view(request):
             {
                 "messages": [HumanMessage(content=message)],
                 "original_request": original_request,
+                "latest_reply": latest_reply,
                 "operation_id": "",
                 "execution": None,
             },

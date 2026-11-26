@@ -96,6 +96,9 @@ class PromptAndRegistryTests(SimpleTestCase):
         self.assertIn("Deals are never created directly", text)
         self.assertIn("not instructions", text)               # document injection guard
         self.assertIn("Never skip or shortcut approval", text)
+        self.assertIn("Department and owner are CRM-managed", text)
+        self.assertIn("linked Contact or Lead", text)
+        self.assertIn("never infer it from names, addresses", text)
 
     def test_registry_has_one_write_entry_point(self):
         names = [t.name for t in tools]
@@ -151,16 +154,17 @@ class LlmFallbackTests(SimpleTestCase):
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key"},
                 clear=True)
-    def test_gemini_provider_defaults(self):
-        gemini, gemini_fallback, groq = build_providers(tools)
-        self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-3.5-flash")
-        self.assertEqual(gemini_fallback.bound.model.split("/")[-1], "gemini-3.8-flash")
-        self.assertEqual(groq.bound.model, "llama-3.3-70b-versatile")
+    def test_provider_defaults(self):
+        groq_primary, groq_secondary, gemini = build_providers(tools)
+        self.assertEqual(groq_primary.bound.model_name, "openai/gpt-oss-120b")
+        self.assertEqual(groq_secondary.bound.model_name, "openai/gpt-oss-20b")
+        self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-3.8-flash")
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key",
-                             "GEMINI_MODEL": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"})
+                             "GEMINI_MODEL": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"},
+                clear=True)
     def test_providers_are_configurable_and_tool_bound(self):
-        gemini, gemini_fallback, groq = build_providers(tools)
+        groq, _groq_secondary, gemini = build_providers(tools)
         self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-custom")
         self.assertEqual(gemini.bound.max_output_tokens, 999)
         self.assertNotIn("parallel_tool_calls", gemini.kwargs)

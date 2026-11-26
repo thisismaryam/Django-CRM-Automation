@@ -23,6 +23,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
+from django.db import connection
 from django.http import HttpRequest, QueryDict
 from django.urls import NoReverseMatch, reverse
 
@@ -85,6 +86,30 @@ class CrmAccess:
         # The department new records are assigned to (CRM set_owner logic).
         self.home_department_id = get_department_id(user)
 
+    # -- department scope (deny by default) ---------------------------
+
+    def scope_error(self) -> str:
+        """Why this user has no department scope, or "" if scope is fine.
+
+        The CRM admin's ``get_queryset`` returns *every* department's
+        records when a user has no department. That is intended for
+        superusers, chiefs and accountants only, so any other user without a
+        department is denied here rather than seeing everything."""
+        user = self.user
+        if user.is_superuser or getattr(user, "is_chief", False) \
+                or getattr(user, "is_accountant", False):
+            return ""
+        if self.department_id or self.home_department_id:
+            return ""
+        return ("Your account is not assigned to a department, so the "
+                "assistant cannot show or change CRM records for you. Ask an "
+                "administrator to add you to a department group.")
+
+    def require_scope(self) -> None:
+        message = self.scope_error()
+        if message:
+            raise PermissionDenied(message)
+
     # -- construction -------------------------------------------------
 
     @classmethod
@@ -126,17 +151,24 @@ class CrmAccess:
         return model_admin
 
     def can_view(self, model) -> bool:
+        if self.scope_error():
+            return False
         return self.admin_for(model).has_view_permission(self.build_request())
 
     def can_add(self, model) -> bool:
+        if self.scope_error():
+            return False
         return self.admin_for(model).has_add_permission(self.build_request())
 
     def can_change(self, obj) -> bool:
+        if self.scope_error():
+            return False
         model_admin = self.admin_for(type(obj))
         return model_admin.has_change_permission(
             self.build_request(obj=obj), obj)
 
     def require_view(self, model) -> None:
+        self.require_scope()
         if not self.can_view(model):
             raise PermissionDenied(
                 f"You do not have permission to view "
@@ -147,13 +179,21 @@ class CrmAccess:
         self.require_view(model)
         return self.admin_for(model).get_queryset(self.build_request())
 
-    def get_visible(self, model, pk) -> Any | None:
-        """The record with ``pk`` if it exists *and* the user may see it."""
+    def get_visible(self, model, pk, *, lock: bool = False) -> Any | None:
+        """The record with ``pk`` if it exists *and* the user may see it.
+
+        ``lock=True`` (inside a transaction) row-locks it where the database
+        supports that, so it cannot change between the stale-data check and
+        the save."""
         try:
             pk = int(pk)
         except (TypeError, ValueError):
             return None
-        return self.queryset(model).filter(pk=pk).first()
+        qs = self.queryset(model).filter(pk=pk)
+        if lock and connection.features.has_select_for_update:
+            qs = qs.select_for_update(
+                of=("self",) if connection.features.has_select_for_update_of else ())
+        return qs.first()
 
     # -- descriptions -------------------------------------------------
 

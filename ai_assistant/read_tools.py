@@ -61,7 +61,11 @@ def crm_read_tool(func: Callable) -> Callable:
 
 
 def _access(config: RunnableConfig) -> CrmAccess:
-    return CrmAccess.from_config(config)
+    access = CrmAccess.from_config(config)
+    # Deny by default: a non-admin user with no department would otherwise
+    # get the CRM admin's unfiltered (all departments) queryset and options.
+    access.require_scope()
+    return access
 
 
 def _ref(obj, label: str | None = None) -> dict | None:
@@ -755,6 +759,7 @@ def list_crm_options(kind: str, query: str = "", *, config: RunnableConfig) -> s
 
 
 @tool
+@crm_read_tool
 def list_departments(*, config: RunnableConfig) -> str:
     """List the departments the authenticated user belongs to."""
     access = _access(config)

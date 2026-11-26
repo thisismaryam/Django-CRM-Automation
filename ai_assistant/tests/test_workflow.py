@@ -224,6 +224,45 @@ class UnassignedAdminWorkflowTests(WorkflowTestCase):
             request_for="Admin approved opportunity").count(), 1)
         self.assertEqual(Deal.objects.filter(request=request).count(), 1)
 
+    def test_department_is_inherited_and_not_a_user_settable_field(self):
+        outcome = self.validate(self.maryam, plan(op(
+            "op1", "create", "request", create_deal=True,
+            request_for="Department is CRM-managed", lead=self.lead.pk,
+            department="Global sales")))
+        self.assertRejected(outcome, "cannot be set", "department")
+
+    def test_admin_contact_request_inherits_department_and_request_country_to_deal(self):
+        company = Company.objects.create(
+            full_name="Byteboom Country Fallback", email="byteboom-fallback@example.test",
+            owner=self.manager, department_id=GLOBAL_SALES)
+        contact = Contact.objects.create(
+            first_name="Sadia", email="sadia-fallback@example.test",
+            company=company, owner=self.manager, department_id=GLOBAL_SALES)
+        outcome = self.validate(self.maryam, plan(op(
+            "op1", "create", "request", create_deal=True,
+            request_for="Byteboom country fallback opportunity",
+            contact=contact.pk, country=self.country.name)))
+        self.assertTrue(outcome.ok, outcome.message)
+        inferred = outcome.plan["operations"][0]["display"]["inferred"]
+        self.assertEqual(inferred["Department"], "Global sales (from linked Contact person)")
+        self.assertFalse(Request.objects.filter(
+            request_for="Byteboom country fallback opportunity").exists())
+        self.assertFalse(Deal.objects.filter(
+            name="Byteboom country fallback opportunity").exists())
+        self.assertEqual(ActionRequest.objects.get().status, ActionRequest.PENDING)
+
+        report = self.execute(self.maryam, outcome)
+        self.assertEqual(report["status"], "success", report)
+        request = Request.objects.get(
+            request_for="Byteboom country fallback opportunity")
+        deal = Deal.objects.get(request=request)
+        self.assertEqual(request.department_id, GLOBAL_SALES)
+        self.assertEqual(deal.department_id, GLOBAL_SALES)
+        self.assertEqual(request.country, self.country)
+        # The linked company has no saved country, so use the user's validated
+        # Request country instead of silently losing that value on the Deal.
+        self.assertEqual(deal.country, self.country)
+
 
 class PermissionTests(WorkflowTestCase):
     def test_user_without_add_permission_cannot_plan_creation(self):
@@ -396,6 +435,102 @@ class MultiRecordWorkflowTests(WorkflowTestCase):
         self.assertEqual(deal.stage, Stage.objects.get(
             department_id=GLOBAL_SALES, second_default=True))
         self.assertEqual(report["results"][2]["deal"]["record_id"], deal.pk)
+
+    def test_request_country_inference_and_all_assistant_deal_fields_survive_approval(self):
+        next_step_date = (timezone.localdate() + timedelta(days=7)).isoformat()
+        outcome = self.validate(self.manager, plan(
+            op("op1", "create", "request", create_deal=True,
+               request_for="Approved fully specified opportunity",
+               contact=self.acme_contact.pk, country=""),
+            op("op2", "update", "deal", record_id="$op1.deal",
+               name="Approved fully specified opportunity",
+               next_step="Send the commercial proposal",
+               next_step_date=next_step_date,
+               description="Proposal prepared for approval.",
+               stage="price offer", amount="25000.50", currency="USD",
+               probability="75", closing_reason="The client is not responding",
+               relevant=False, active=False, important=True),
+            goal="Create and configure an opportunity for the existing contact",
+        ))
+        self.assertTrue(outcome.ok, outcome.message)
+        request_card = approval_payload(outcome.plan)["operations"][0]
+        deal_card = approval_payload(outcome.plan)["operations"][1]
+        self.assertEqual(request_card["inferred"]["Country"],
+                         "taken from the linked counterparty")
+        self.assertEqual(request_card["inferred"]["Department"],
+                         "Global sales (from your department)")
+        self.assertEqual(set(deal_card["fields"]), {
+            "Name", "Next step", "Step date", "Description", "Stage", "Amount",
+            "Currency", "Probability (%)", "Closing reason", "Relevant", "Active",
+            "Important",
+        })
+        self.assertFalse(Request.objects.filter(
+            request_for="Approved fully specified opportunity").exists())
+        self.assertFalse(Deal.objects.filter(
+            name="Approved fully specified opportunity").exists())
+        self.assertEqual(ActionRequest.objects.get().status, ActionRequest.PENDING)
+
+        report = self.execute(self.manager, outcome)
+        self.assertEqual(report["status"], "success", report)
+        request = Request.objects.get(
+            request_for="Approved fully specified opportunity")
+        deal = Deal.objects.get(request=request)
+        self.assertEqual((request.country, deal.country),
+                         (self.country, self.country))
+        self.assertEqual(deal.name, "Approved fully specified opportunity")
+        self.assertEqual(deal.next_step, "Send the commercial proposal")
+        self.assertEqual(deal.next_step_date.isoformat(), next_step_date)
+        self.assertEqual(deal.description, "Proposal prepared for approval.")
+        self.assertEqual(deal.stage.name, "price offer")
+        self.assertEqual(deal.amount, Decimal("25000.50"))
+        self.assertEqual(deal.currency.name, "USD")
+        self.assertEqual(deal.probability, 75)
+        self.assertEqual(deal.closing_reason.name, "The client is not responding")
+        self.assertFalse(deal.relevant)
+        self.assertFalse(deal.active)
+        self.assertTrue(deal.important)
+        self.assertEqual(deal.department_id, GLOBAL_SALES)
+        self.assertEqual(deal.contact, self.acme_contact)
+        self.assertEqual(deal.company, self.acme)
+
+    def test_blank_country_on_existing_request_is_inferred_before_required_validation(self):
+        pending = Request.objects.create(
+            request_for="Existing request with blank country",
+            first_name=self.acme_contact.first_name,
+            contact=self.acme_contact, company=self.acme,
+            owner=self.manager, department_id=GLOBAL_SALES)
+        outcome = self.validate(self.manager, plan(op(
+            "op1", "update", "request", record_id=pending.pk,
+            create_deal=True, country="")))
+        self.assertTrue(outcome.ok, outcome.message)
+        operation = outcome.plan["operations"][0]
+        self.assertEqual(operation["data"]["country"], str(self.country.pk))
+        self.assertEqual(operation["display"]["inferred"]["Country"],
+                         "taken from the linked counterparty")
+        self.assertIsNone(pending.deal_id)
+
+        report = self.execute(self.manager, outcome)
+        self.assertEqual(report["status"], "success", report)
+        pending.refresh_from_db()
+        self.assertEqual(pending.country, self.country)
+        self.assertEqual(pending.deal.country, self.country)
+
+    def test_global_request_without_saved_or_user_supplied_country_is_not_guessed(self):
+        company = Company.objects.create(
+            full_name="No Country Co", email="no-country@example.test",
+            owner=self.manager, department_id=GLOBAL_SALES)
+        contact = Contact.objects.create(
+            first_name="NoCountry", email="nocountry@example.test",
+            company=company, owner=self.manager, department_id=GLOBAL_SALES)
+        outcome = self.validate(self.manager, plan(op(
+            "op1", "create", "request", create_deal=True,
+            request_for="Country must be supplied", contact=contact.pk)))
+        self.assertFalse(outcome.ok)
+        self.assertIn("country", outcome.message.lower())
+        self.assertFalse(Request.objects.filter(
+            request_for="Country must be supplied").exists())
+        self.assertFalse(Deal.objects.filter(
+            name="Country must be supplied").exists())
 
     def test_failure_rolls_back_every_operation(self):
         outcome = self.validate(self.manager, self.prospect_plan())

@@ -630,12 +630,15 @@ def _get_or_create_deal(obj: Request, request: WSGIRequest) -> Deal:
             ).exists():
                 deal.tier_name = client_type
             if deal.company:
-                deal.country = deal.company.country
+                # A globally operating department requires a country on the
+                # Request. Prefer the linked company's saved country, then
+                # preserve the validated Request country if that is absent.
+                deal.country = deal.company.country or obj.country
                 deal.city = deal.company.city
         else:
             deal.lead = obj.lead
             if deal.lead:
-                deal.country = deal.lead.country
+                deal.country = deal.lead.country or obj.country
                 deal.city = deal.lead.city
         deal.save()
         copy_files(obj, deal)
