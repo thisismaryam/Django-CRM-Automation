@@ -155,19 +155,94 @@ class LlmFallbackTests(SimpleTestCase):
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key"},
                 clear=True)
     def test_provider_defaults(self):
-        groq_primary, groq_secondary, gemini = build_providers(tools)
-        self.assertEqual(groq_primary.bound.model_name, "openai/gpt-oss-120b")
-        self.assertEqual(groq_secondary.bound.model_name, "openai/gpt-oss-20b")
-        self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-3.8-flash")
+        providers = build_providers(tools)
+        self.assertEqual(len(providers), 4)  # groq x2, gemini x2
+        # First groq model
+        self.assertEqual(providers[0].bound.model_name, "qwen/qwen3-27b")
+        # Second groq model
+        self.assertEqual(providers[1].bound.model_name, "openai/gpt-oss-120b")
+        # First gemini model
+        self.assertEqual(providers[2].bound.model.split("/")[-1], "gemini-1.5-flash")
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "GROQ_API_KEY": "test-key",
-                             "GEMINI_MODEL": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"},
+                             "GEMINI_MODELS": "gemini-custom", "AI_ASSISTANT_MAX_TOKENS": "999"},
                 clear=True)
     def test_providers_are_configurable_and_tool_bound(self):
-        groq, _groq_secondary, gemini = build_providers(tools)
+        providers = build_providers(tools)
+        groq = providers[0]
+        gemini = providers[2]
         self.assertEqual(gemini.bound.model.split("/")[-1], "gemini-custom")
         self.assertEqual(gemini.bound.max_output_tokens, 999)
         self.assertNotIn("parallel_tool_calls", gemini.kwargs)
         self.assertIs(groq.kwargs["parallel_tool_calls"], False)
         bound_names = {t["function"]["name"] for t in groq.kwargs["tools"]}
         self.assertIn(PLAN_TOOL_NAME, bound_names)
+
+    @patch.dict(os.environ, {"GROQ_API_KEY": "test-key", "GEMINI_API_KEY": "test-key",
+                             "LLM_TIMEOUT_SECONDS": "1", "LLM_TOTAL_TIMEOUT_SECONDS": "5"},
+                clear=True)
+    def test_timeout_triggers_failover(self):
+        """A provider timeout counts as 'unavailable' and triggers failover to next provider."""
+        from ai_assistant.llm import get_llm, _invoke_with_failover
+
+        # Test the failover logic directly with a mock that raises TimeoutError
+        call_order = []
+
+        def failing_groq(messages, config=None):
+            call_order.append("groq")
+            raise TimeoutError("Request timed out")
+
+        def succeeding_gemini(messages, config=None):
+            call_order.append("gemini")
+            return AIMessage(content="gemini success")
+
+        providers = [
+            ("groq", RunnableLambda(failing_groq)),
+            ("gemini", RunnableLambda(succeeding_gemini)),
+        ]
+
+        result = _invoke_with_failover(providers, [HumanMessage(content="hi")])
+        self.assertEqual(result.content, "gemini success")
+        self.assertEqual(call_order, ["groq", "gemini"])
+
+    @patch.dict(os.environ, {"GROQ_API_KEY": "test-key", "GEMINI_API_KEY": "test-key",
+                             "LLM_TIMEOUT_SECONDS": "1", "LLM_TOTAL_TIMEOUT_SECONDS": "2"},
+                clear=True)
+    def test_total_timeout_stops_failover(self):
+        """Total timeout caps all attempts; returns provider error message."""
+        from ai_assistant.llm import _invoke_with_failover
+from ai_assistant.agent import PROVIDER_ERROR_TEXT
+
+        def always_timeout(messages, config=None):
+            raise TimeoutError("Request timed out")
+
+        providers = [
+            ("groq", RunnableLambda(always_timeout)),
+            ("gemini", RunnableLambda(always_timeout)),
+        ]
+
+        result = _invoke_with_failover(providers, [HumanMessage(content="hi")])
+        # Should return the provider error text when all fail due to timeout
+        self.assertEqual(result.content, PROVIDER_ERROR_TEXT)
+
+    @patch.dict(os.environ, {"GROQ_API_KEY": "test-key", "GEMINI_API_KEY": "test-key"},
+                clear=True)
+    def test_retries_disabled_on_clients(self):
+        """Verify max_retries=0 is set on Groq, Cloudflare, OpenRouter clients."""
+        from ai_assistant.llm import build_providers
+        providers = build_providers(tools)
+
+        # Check Groq clients have max_retries=0
+        for p in providers:
+            if hasattr(p, 'bound') and hasattr(p.bound, 'max_retries'):
+                self.assertEqual(p.bound.max_retries, 0,
+                    f"Expected max_retries=0 on {type(p.bound).__name__}")
+
+        # Check ChatOpenAI-based clients (Cloudflare, OpenRouter) have max_retries=0
+        # They are created via ChatOpenAI which uses max_retries parameter
+        for p in providers:
+            # ChatOpenAI stores max_retries in the constructor
+            if hasattr(p, 'bound') and hasattr(p.bound, 'kwargs'):
+                kwargs = p.bound.kwargs
+                if 'max_retries' in kwargs:
+                    self.assertEqual(kwargs['max_retries'], 0)

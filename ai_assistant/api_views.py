@@ -21,7 +21,7 @@ from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
 from ai_assistant.agent import get_app, is_simple_greeting
-from ai_assistant.conversation import is_continuation_reply
+from ai_assistant.conversation import answers_question, is_continuation_reply
 from ai_assistant.documents.extract import extract_text_from_file
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,9 @@ def _build_response(app, config: dict, thread_id: str, *, decision: str | None =
     state = getattr(snapshot, "values", None) or {}
     text = _last_ai_text(state)
     if not text:
-        text = "Decision processed." if decision else "I have processed your request."
+        text = ("Decision processed." if decision else
+                "I did not get an answer from the AI service, so nothing was done "
+                "or changed. Please send your message again.")
     body = {"status": "success", "thread_id": thread_id, "message": text}
     if decision and state.get("execution"):
         body["execution"] = state["execution"]
@@ -201,7 +203,10 @@ def chat_view(request):
         previous_task = (getattr(snapshot, "values", None) or {}).get("original_request", "")
         if (pending is None and not uploaded_file and previous_task
                 and not is_simple_greeting(previous_task)
-                and is_continuation_reply(message)):
+                and (is_continuation_reply(message)
+                     or answers_question(
+                         _last_ai_text(getattr(snapshot, "values", None) or {}),
+                         message))):
             latest_reply = message.strip()
             original_request = previous_task
         if pending is not None:

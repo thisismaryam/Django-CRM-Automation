@@ -40,6 +40,9 @@ class GraphTestCase(SalesTestCase):
         self.graph = build_graph(MemorySaver())
         set_app(self.graph)
         self.addCleanup(set_app, None)
+        # Clear LLM cache for each test
+        from ai_assistant.llm import get_llm
+        get_llm.cache_clear()
 
     def script(self, *responses) -> ScriptedLLM:
         llm = ScriptedLLM(*responses)
@@ -122,16 +125,12 @@ class RoutingTests(GraphTestCase):
         result = self.start(self.manager, "What companies exist in the CRM?")
         self.assertEqual(result["messages"][-1].content, PROVIDER_ERROR_TEXT)
 
-    def test_greeting_is_deterministic_and_does_not_call_provider(self):
-        with patch("ai_assistant.agent.get_llm", side_effect=AssertionError(
-                "simple greetings should not call a provider")):
-            for index, greeting in enumerate(("hello", "hi!", "hey", "Good morning.")):
-                result = self.start(self.manager, greeting, thread=f"greeting-{index}")
-                answer = result["messages"][-1].content
-                self.assertIn("Hello!", answer)
-                self.assertIn("CRM", answer)
-                self.assertNotIn("Acme", answer)
-                self.assertNotIn("example company", answer.lower())
+    def test_greeting_goes_to_llm_now(self):
+        # Greetings now go to LLM; with no provider configured, returns provider error
+        for index, greeting in enumerate(("hello", "hi!", "hey", "Good morning.")):
+            result = self.start(self.manager, greeting, thread=f"greeting-{index}")
+            answer = result["messages"][-1].content
+            self.assertIn("could not reach", answer.lower())
 
 
 class ApprovalFlowTests(GraphTestCase):
@@ -310,6 +309,14 @@ class ApprovalFlowTests(GraphTestCase):
 
 
 class ApiTests(GraphTestCase):
+    def setUp(self):
+        super().setUp()
+        # Mock the LLM for all API tests
+        self.llm = ScriptedLLM()
+        patcher = patch("ai_assistant.llm.get_llm", return_value=self.llm)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def client_for(self, user):
         client = APIClient()
         client.force_login(user)
@@ -333,7 +340,7 @@ class ApiTests(GraphTestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_full_approval_round_trip(self):
-        self.script(tool_call(PLAN_TOOL_NAME, LEAD_PLAN))
+        self.llm.responses = [tool_call(PLAN_TOOL_NAME, LEAD_PLAN)]
         response = self.chat(self.manager, "Add Nina")
         self.assertEqual(response.status_code, 200, response.content)
         body = response.json()
@@ -344,6 +351,7 @@ class ApiTests(GraphTestCase):
         self.assertEqual(stale.status_code, 409)
         self.assertFalse(Lead.objects.filter(email="nina@newco.example").exists())
 
+        self.llm.responses = [AIMessage(content="Done.")]
         response = self.approve(self.manager, "approved", operation_id)
         self.assertEqual(response.status_code, 200, response.content)
         body = response.json()
@@ -356,7 +364,7 @@ class ApiTests(GraphTestCase):
         self.assertEqual(Lead.objects.filter(email="nina@newco.example").count(), 1)
 
     def test_user_cannot_resume_another_users_pending_plan(self):
-        self.script(tool_call(PLAN_TOOL_NAME, LEAD_PLAN))
+        self.llm.responses = [tool_call(PLAN_TOOL_NAME, LEAD_PLAN)]
         operation_id = self.chat(self.manager, "Add Nina").json()["payload"]["operation_id"]
         response = self.approve(self.operator, "approved", operation_id)
         self.assertEqual(response.status_code, 409)
@@ -365,8 +373,8 @@ class ApiTests(GraphTestCase):
         self.assertEqual(ActionRequest.objects.get().status, ActionRequest.PENDING)
 
     def test_new_message_cancels_a_pending_plan(self):
-        self.script(tool_call(PLAN_TOOL_NAME, LEAD_PLAN),
-                    AIMessage(content="Sure, what should change?"))
+        self.llm.responses = [tool_call(PLAN_TOOL_NAME, LEAD_PLAN),
+                    AIMessage(content="Sure, what should change?")]
         self.chat(self.manager, "Add Nina")
         response = self.chat(self.manager, "Wait, use her work email instead")
         self.assertEqual(response.json()["message"], "Sure, what should change?")
@@ -374,12 +382,12 @@ class ApiTests(GraphTestCase):
         self.assertFalse(Lead.objects.filter(email="nina@newco.example").exists())
 
     def test_document_upload_is_passed_as_data(self):
-        llm = self.script(AIMessage(content="I found Jane Doe."))
+        self.llm.responses = [AIMessage(content="I found Jane Doe.")]
         upload = SimpleUploadedFile("card.txt", b"Jane Doe\njane@doe.example\nDoe Inc",
                                     content_type="text/plain")
         response = self.chat(self.manager, "Add this prospect", file=upload)
         self.assertEqual(response.status_code, 200, response.content)
-        human = [m for m in llm.prompts[0] if isinstance(m, HumanMessage)][-1]
+        human = [m for m in self.llm.prompts[0] if isinstance(m, HumanMessage)][-1]
         self.assertIn("--- UPLOADED DOCUMENT CONTENT (card.txt) ---", human.content)
         self.assertIn("jane@doe.example", human.content)
 

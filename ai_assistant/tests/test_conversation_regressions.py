@@ -24,6 +24,7 @@ from rest_framework.test import APIClient
 
 from ai_assistant.agent import (
     SYSTEM_PROMPT, build_graph, build_system_prompt, set_app,
+    PROVIDER_ERROR_TEXT,
 )
 from ai_assistant.context import (
     MAX_HISTORY_CHARS, trim_conversation_history,
@@ -34,8 +35,7 @@ from ai_assistant.tests.base import GLOBAL_SALES, SalesTestCase, tool_call
 from ai_assistant.workflow import PLAN_TOOL_NAME
 from crm.models import Company, Contact, Deal, Request, Stage
 
-WELCOME = ("Hello! I can help you with Leads, Companies, Contacts, Requests, "
-           "Deals, and Payments in the CRM. Let me know what you'd like to do next.")
+# REFUSAL is still used for non-CRM requests
 REFUSAL = "I can only help with sales CRM tasks."
 
 CONVERSATION_1 = ("Create a new deal called ERP Integration for the existing company "
@@ -53,7 +53,7 @@ class VisibleContextLLM:
       error it is shown);
     * the second: looks up Sadia and asks for optional details; on "skip" it
       continues the task if the task is visible in its prompt, otherwise it
-      can only produce the generic welcome (the reported failure).
+      returns the provider error message (since greetings now go to LLM).
     Like real providers, its tool-call messages carry bulky metadata.
     """
 
@@ -103,7 +103,7 @@ class VisibleContextLLM:
             "Sadia" in h for h in humans[:-1])
         if last.strip().lower() == "skip":
             if not task_visible:
-                return AIMessage(content=WELCOME)             # the reported failure
+                return AIMessage(content=PROVIDER_ERROR_TEXT)   # greetings now go to LLM
             contact_id = self._contact_id(*[m.content for m in messages
                                             if isinstance(m, ToolMessage)
                                             and m.name == "search_contacts"])
@@ -131,7 +131,8 @@ class VisibleContextLLM:
             return AIMessage(content=(
                 "We have a contact Sadia at Byteboom. We have no requests for Sadia. "
                 "More details can be added, or type \"skip\" to create the request and deal."))
-        return AIMessage(content=WELCOME)
+        # Unknown message (e.g., greeting) -> provider error since no LLM available
+        return AIMessage(content=PROVIDER_ERROR_TEXT)
 
     @staticmethod
     def _contact_id(*contents):
@@ -165,6 +166,8 @@ class ConversationBase(SalesTestCase):
         self.client.force_login(self.manager)
 
     def use_llm(self, llm):
+        from ai_assistant.llm import get_llm
+        get_llm.cache_clear()
         patcher = patch("ai_assistant.agent.get_llm", return_value=llm)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -279,7 +282,7 @@ class SkipConversation(ConversationBase):
         before = self.crm_counts()
         body = self.chat("skip", thread="skip")
 
-        self.assertNotEqual(body.get("message"), WELCOME, "skip must not restart the chat")
+        # skip must not restart the chat (should show approval card)
         self.assertEqual(body["status"], "pending_approval", body)
         self.assertEqual(self.crm_counts(), before, "typing skip must not write to the CRM")
         self.assertFalse(Deal.objects.filter(name="CRM Implementation").exists())
@@ -331,7 +334,8 @@ class SkipConversation(ConversationBase):
     def test_skip_with_nothing_to_continue_is_a_normal_message(self):
         self.use_llm(VisibleContextLLM())
         body = self.chat("skip", thread="fresh")
-        self.assertEqual(body["message"], WELCOME)
+        # Greetings/short messages now go to LLM; with test LLM returns PROVIDER_ERROR_TEXT
+        self.assertEqual(body["message"], PROVIDER_ERROR_TEXT)
         state = self.graph.get_state(
             {"configurable": {"thread_id": f"user-{self.manager.pk}:fresh"}}).values
         self.assertEqual(state["original_request"], "skip")

@@ -18,6 +18,8 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 DEFAULT_MAX_TOKENS = 2048
+DEFAULT_TIMEOUT_SECONDS = 40
+DEFAULT_TOTAL_TIMEOUT_SECONDS = 90
 _provider_backoff_until: dict[str, float] = {}
 _backoff_lock = threading.Lock()
 
@@ -34,11 +36,28 @@ def _max_tokens() -> int:
         return DEFAULT_MAX_TOKENS
 
 
+def _timeout_seconds() -> int:
+    """Per-provider timeout (default 40s, env LLM_TIMEOUT_SECONDS)."""
+    try:
+        return int(os.getenv("LLM_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS))
+    except ValueError:
+        return DEFAULT_TIMEOUT_SECONDS
+
+
+def _total_timeout_seconds() -> int:
+    """Total timeout for all provider attempts (default 90s, env LLM_TOTAL_TIMEOUT_SECONDS)."""
+    try:
+        return int(os.getenv("LLM_TOTAL_TIMEOUT_SECONDS", DEFAULT_TOTAL_TIMEOUT_SECONDS))
+    except ValueError:
+        return DEFAULT_TOTAL_TIMEOUT_SECONDS
+
+
 def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
     """Build tool-bound clients for configured providers, in failover order."""
     models: list[tuple[str, Runnable]] = []
     max_tokens = _max_tokens()
 
+    timeout_s = _timeout_seconds()
     # Groq: qwen/qwen3-27b (primary), openai/gpt-oss-120b (fallback)
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
@@ -50,7 +69,7 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
         for model_name in groq_models:
             model = ChatGroq(
                 model=model_name, api_key=groq_key, temperature=0,
-                max_tokens=max_tokens,
+                max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
             ).bind_tools(tools, parallel_tool_calls=False)
             models.append(("groq", model))
 
@@ -67,6 +86,7 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             model = ChatGoogleGenerativeAI(
                 model=model_name, api_key=gemini_key, temperature=0,
                 max_tokens=max_tokens, retries=0,
+                timeout=timeout_s,
             ).bind_tools(tools)
             models.append(("gemini", model))
 
@@ -88,7 +108,7 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
                 model=model_name, api_key=cf_key,
                 base_url=("https://api.cloudflare.com/client/v4/accounts/"
                           f"{cf_account}/ai/v1"),
-                temperature=0, max_tokens=max_tokens,
+                temperature=0, max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
             ).bind_tools(tools, parallel_tool_calls=False)
             models.append(("cloudflare", model))
 
@@ -113,7 +133,7 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             model = ChatOpenAI(
                 model=model_name, api_key=openrouter_key,
                 base_url="https://openrouter.ai/api/v1",
-                temperature=0, max_tokens=max_tokens,
+                temperature=0, max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
             ).bind_tools(tools, parallel_tool_calls=False)
             models.append(("openrouter", model))
 
@@ -216,56 +236,81 @@ def _invoke_with_failover(providers, messages, config=None):
         raise RuntimeError(
             "No LLM provider is configured. Add at least one provider API key.")
 
-    now = time.monotonic()
-    with _backoff_lock:
-        ready = [(name, model) for name, model in providers
-                 if _provider_backoff_until.get(name, 0) <= now]
-        open_names = {name for name, _model in providers
-                      if _provider_backoff_until.get(name, 0) > now}
-    # When every circuit is open, probe the provider closest to recovery.
-    if ready:
-        attempts = ready
-        skipped_names = open_names
-    else:
-        with _backoff_lock:
-            attempts = [min(providers, key=lambda item:
-                            _provider_backoff_until.get(item[0], 0))]
-        skipped_names = open_names - {attempts[0][0]}
-    for skipped_name in sorted(skipped_names):
-        logger.info("LLM provider %s temporarily skipped; circuit is open",
-                    skipped_name)
+    total_timeout = _total_timeout_seconds()
+    start_time = time.monotonic()
 
     messages = _portable_messages(messages)
     failures = []
-    cooling: set[str] = set()
-    for name, model in attempts:
-        if name in cooling:
-            # Models of one provider share its quota: after a rate-limit or
-            # outage, the sibling model would fail the same way.
-            logger.info("LLM provider %s skipped for this request after a failure", name)
-            continue
-        logger.info("Attempting LLM provider %s", name)
-        try:
-            result = (model.invoke(messages, config=config) if config is not None
-                      else model.invoke(messages))
-        except Exception as exc:
-            failures.append(exc)
-            category = _error_category(exc)
-            cooldown = _cooldown_seconds(exc)
-            if cooldown:
-                cooling.add(name)
-                with _backoff_lock:
-                    _provider_backoff_until[name] = time.monotonic() + cooldown
-            logger.warning("LLM provider %s failed (category: %s); trying next provider",
-                           name, category)
-            continue
-        with _backoff_lock:
-            _provider_backoff_until.pop(name, None)
-        logger.info("LLM provider %s successfully generated a response", name)
-        if failures:
-            logger.info("LLM request handled by provider %s after failover", name)
-        return result
 
+    while True:
+        now = time.monotonic()
+        elapsed = now - start_time
+        if elapsed >= total_timeout:
+            logger.warning("Total LLM timeout exceeded (%ds); giving up", total_timeout)
+            raise RuntimeError("All configured LLM providers failed (total timeout).")
+
+        with _backoff_lock:
+            ready = [(name, model) for name, model in providers
+                     if _provider_backoff_until.get(name, 0) <= now]
+            open_names = {name for name, _model in providers
+                          if _provider_backoff_until.get(name, 0) > now}
+
+        # When every circuit is open, probe the provider closest to recovery.
+        if ready:
+            attempts = ready
+            skipped_names = open_names
+        else:
+            with _backoff_lock:
+                attempts = [min(providers, key=lambda item:
+                                _provider_backoff_until.get(item[0], 0))]
+            skipped_names = open_names - {attempts[0][0]}
+        for skipped_name in sorted(skipped_names):
+            logger.info("LLM provider %s temporarily skipped; circuit is open",
+                        skipped_name)
+
+        cooling: set[str] = set()
+        for name, model in attempts:
+            # Check total timeout before each attempt
+            if time.monotonic() - start_time >= total_timeout:
+                logger.warning("Total LLM timeout exceeded (%ds) before attempting %s", total_timeout, name)
+                raise RuntimeError("All configured LLM providers failed (total timeout).")
+
+            if name in cooling:
+                # Models of one provider share its quota: after a rate-limit or
+                # outage, the sibling model would fail the same way.
+                logger.info("LLM provider %s skipped for this request after a failure", name)
+                continue
+            logger.info("Attempting LLM provider %s", name)
+            try:
+                result = (model.invoke(messages, config=config) if config is not None
+                          else model.invoke(messages))
+            except Exception as exc:
+                failures.append(exc)
+                category = _error_category(exc)
+                # Treat timeout as "unavailable" for circuit breaker
+                if isinstance(exc, TimeoutError) or "timeout" in str(exc).lower() or "timed out" in str(exc).lower():
+                    category = "unavailable"
+                cooldown = _cooldown_seconds(exc)
+                if cooldown:
+                    cooling.add(name)
+                    with _backoff_lock:
+                        _provider_backoff_until[name] = time.monotonic() + cooldown
+                logger.warning(
+                    "LLM provider %s failed (category: %s, error type: %s, HTTP status: %s); "
+                    "trying next provider",
+                    name, category, type(exc).__name__, _status_code(exc))
+                continue
+            with _backoff_lock:
+                _provider_backoff_until.pop(name, None)
+            logger.info("LLM provider %s successfully generated a response", name)
+            if failures:
+                logger.info("LLM request handled by provider %s after failover", name)
+            return result
+
+        # All ready attempts failed; loop to check for newly-ready providers
+        # or total timeout on next iteration
+
+    # Should not reach here
     raise RuntimeError(
         f"All configured LLM providers failed ({len(failures)} attempted).") from (
             failures[-1] if failures else None)

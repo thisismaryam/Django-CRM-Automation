@@ -135,4 +135,4 @@ class ProviderFailoverTests(SimpleTestCase):
 
     @patch.dict(os.environ, {"GROQ_API_KEY": "k", "GEMINI_API_KEY": "k"}, clear=True)
     def test_failover_order_is_groq_then_gemini(self):
-        self.assertEqual(len(build_providers([])), 3)
+        self.assertEqual(len(build_providers([])), 4)  # groq x2, gemini x2
