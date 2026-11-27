@@ -29,7 +29,7 @@ from typing import Annotated, Any, TypedDict
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
@@ -89,10 +89,10 @@ DECIDE WHAT KIND OF REQUEST IT IS
 CRM SALES PROCESS
 - A new prospect from a company that is not yet a customer is usually a Lead (company_name as text). If the user wants a customer record, create the Company (name and email are required) and then a Contact with company=$opN.
 - For an existing customer company, reuse or create a Contact under that company.
-- To register an opportunity, create a Request (request_for = what the customer wants) linked to the contact or the lead, with create_deal=true. The CRM creates the Deal from the Request. To set the new deal's amount, probability, stage or next step, add an update deal operation with record_id=$<request op>.deal.
+- To register an opportunity, create a Request (request_for = the deal name / what the customer wants) linked to the contact or the lead, with create_deal=true. The CRM creates the Deal from the Request. In the SAME plan, add a separate update deal operation with record_id=$<request op>.deal and put every supplied Deal field (including amount, currency, probability and stage) on that Deal update, never on the Request.
 - Department and owner are CRM-managed; never include them as proposed fields or ask the user to omit them. A new Request/Deal uses the signed-in user's CRM department and owner; for an unassigned superuser it inherits them from the linked Contact or Lead. When processing an existing Request, an unassigned superuser uses that Request's saved assignment. Check the inferred Department against any department the user requested, and ask for clarification if they differ. The approval card shows the department that will be used.
 - For a Request that creates a Deal in a globally operating department, country is required. Use the saved country on the linked Contact's Company, Lead, or Company when available. If none has a country, ask the user; never infer it from names, addresses, or other indirect clues. A country the user supplies on the Request is preserved on the Deal when the linked party has no saved country.
-- "Create a deal called X for <existing company or contact>" is a Request with create_deal=true: request_for = the deal name X, linked to the existing contact (by id; if only a company is named, link the company), plus an update deal operation (record_id=$<request op>.deal) for amount, currency, probability, stage and next step. Use the stage name exactly as the user wrote it. Never create stages or other reference data: no tool can. If {plan_tool} says a stage is not available, show the user the stage options it lists and ask which one to use. The user's own department is assigned automatically; do not send a department field, just tell the user the deal will be in their department.
+- "Create a deal called X for <existing company or contact>" is a Request with create_deal=true: request_for = the deal name X, linked to the existing contact (by id; if only a company is named, link the company), plus an update deal operation (record_id=$<request op>.deal) containing all supplied Deal fields. If the user also requests a payment, include a create payment operation with deal=$<same request op>.deal. Keep the Request, Deal update and Payment in the same plan and approval. Use the stage name exactly as the user wrote it. Never create stages or other reference data: no tool can. If {plan_tool} says a stage is not available, show the user the stage options it lists and ask which one to use. The user's own department is assigned automatically; do not send a department field, just tell the user the deal will be in their department.
 - Deals are never created directly. Payments belong to a deal (existing id or $<request op>.deal).
 - A request links a contact OR a lead, never both, and a lead is not combined with a company on a request.
 
@@ -109,6 +109,25 @@ PROVIDER_ERROR_TEXT = (
     "I could not reach the AI service just now, so nothing was done. "
     "Please try again in a moment."
 )
+
+
+MAX_LLM_CALLS_PER_TURN = int(os.environ.get("AI_ASSISTANT_MAX_LLM_CALLS", "8"))
+LOOP_LIMIT_TEXT = (
+    "I could not finish this in a reasonable number of steps, so I stopped "
+    "and nothing was saved. Please give me the exact record ids or names "
+    "(for example the company, contact or deal) and try again."
+)
+
+
+def _llm_calls_this_turn(messages) -> int:
+    """LLM responses since the user's latest message."""
+    count = 0
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        if isinstance(message, AIMessage):
+            count += 1
+    return count
 
 
 CONTINUATION_NOTE = """
@@ -145,6 +164,13 @@ def is_simple_greeting(text: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def agent_node(state: AgentState):
+    original_request = state.get("original_request", "")
+    if _llm_calls_this_turn(state["messages"]) >= MAX_LLM_CALLS_PER_TURN:
+        # Stop a search/retry loop before it burns the providers' quota. Each
+        # call re-sends the full prompt and every tool schema.
+        logger.warning("Agent stopped after %d LLM calls for one message",
+                       MAX_LLM_CALLS_PER_TURN)
+        return {"messages": [AIMessage(content=LOOP_LIMIT_TEXT)]}
     messages = trim_conversation_history(state["messages"])
     prompt_messages = [build_system_prompt(
         original_request, state.get("latest_reply", ""))] + messages

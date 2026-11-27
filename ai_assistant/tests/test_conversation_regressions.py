@@ -31,9 +31,11 @@ from ai_assistant.context import (
 )
 from ai_assistant.conversation import is_continuation_reply
 from ai_assistant.models import ActionRequest
-from ai_assistant.tests.base import GLOBAL_SALES, SalesTestCase, tool_call
+from ai_assistant.tests.base import (
+    GLOBAL_SALES, SalesTestCase, ScriptedLLM, tool_call,
+)
 from ai_assistant.workflow import PLAN_TOOL_NAME
-from crm.models import Company, Contact, Deal, Request, Stage
+from crm.models import Company, Contact, Deal, Lead, Payment, Request, Stage
 
 # REFUSAL is still used for non-CRM requests
 REFUSAL = "I can only help with sales CRM tasks."
@@ -258,6 +260,140 @@ class ErpIntegrationDealConversation(ConversationBase):
         # the one-sentence refusal is still available for non-CRM requests
         self.assertIn("clearly unrelated to the CRM", SYSTEM_PROMPT)
         self.assertIn("you can only help with sales CRM tasks", SYSTEM_PROMPT)
+
+
+class CompleteNewDealConversation(ConversationBase):
+    def setUp(self):
+        super().setUp()
+        Stage.objects.create(
+            name="commercial offer", department_id=GLOBAL_SALES, index_number=99)
+
+    def nestle_plan(self):
+        return {
+            "goal": "Onboard Nestle Pakistan and create its deal and payment",
+            "operations": [
+                {"op_id": "op1", "action": "create", "record_type": "company",
+                 "fields": [
+                     {"name": "full_name", "value": "Nestle Pakistan"},
+                     {"name": "email", "value": "info@nestle.example.com"},
+                     {"name": "website", "value": "https://nestle.example.com"},
+                     {"name": "country", "value": self.country.name},
+                 ]},
+                {"op_id": "op2", "action": "create", "record_type": "lead",
+                 "fields": [
+                     {"name": "first_name", "value": "Robert"},
+                     {"name": "email", "value": "robert@example.com"},
+                     {"name": "phone", "value": "03111222333"},
+                     {"name": "company", "value": "$op1"},
+                 ]},
+                {"op_id": "op3", "action": "create", "record_type": "contact",
+                 "fields": [
+                     {"name": "first_name", "value": "Hamza"},
+                     {"name": "email", "value": "hamza@example.com"},
+                     {"name": "title", "value": "Marketing Director"},
+                     {"name": "company", "value": "$op1"},
+                 ]},
+                {"op_id": "op4", "action": "create", "record_type": "request",
+                 "create_deal": True,
+                 "fields": [
+                     {"name": "request_for", "value": "Nestle Marketing Automation"},
+                     {"name": "contact", "value": "$op3"},
+                 ]},
+                {"op_id": "op5", "action": "update", "record_type": "deal",
+                 "record_id": "$op4.deal",
+                 "fields": [
+                     {"name": "amount", "value": "7500"},
+                     {"name": "currency", "value": "USD"},
+                     {"name": "probability", "value": "85"},
+                     {"name": "stage", "value": "commercial offer"},
+                 ]},
+                {"op_id": "op6", "action": "create", "record_type": "payment",
+                 "fields": [
+                     {"name": "deal", "value": "$op4.deal"},
+                     {"name": "amount", "value": "20"},
+                     {"name": "currency", "value": "USD"},
+                 ]},
+            ],
+        }
+
+    def submit_nestle_plan(self, thread):
+        llm = ScriptedLLM(tool_call(PLAN_TOOL_NAME, self.nestle_plan()))
+        self.use_llm(llm)
+        response = self.chat(
+            "Onboard Nestle Pakistan and create the Nestle Marketing Automation "
+            "deal for Hamza, amount 7500 USD, probability 85%, commercial offer "
+            "stage, with a 20 USD payment. Skip optional details.",
+            thread=thread)
+        if len(llm.prompts) > 1:
+            feedback = [message.content for message in llm.prompts[-1]
+                        if isinstance(message, ToolMessage)]
+            self.fail(feedback[-1] if feedback else "The plan was unexpectedly retried.")
+        return response
+
+    def crm_counts(self):
+        return tuple(model.objects.count() for model in (
+            Company, Lead, Contact, Request, Deal, Payment, Stage))
+
+    def test_complete_customer_deal_and_payment_share_one_approval(self):
+        before = self.crm_counts()
+        body = self.submit_nestle_plan("nestle-complete")
+
+        self.assertEqual(body["status"], "pending_approval", body)
+        self.assertEqual(self.crm_counts(), before)
+        operations = body["payload"]["operations"]
+        self.assertEqual(
+            [(op["action"], op["record_type"]) for op in operations],
+            [("create", "company"), ("create", "lead"), ("create", "contact"),
+             ("create", "request"), ("update", "deal"), ("create", "payment")])
+        self.assertEqual(operations[4]["fields"]["Amount"], "7500")
+        self.assertEqual(operations[4]["fields"]["Currency"], "USD")
+        self.assertEqual(operations[4]["fields"]["Probability (%)"], "85")
+        self.assertEqual(operations[4]["fields"]["Stage"], "commercial offer")
+        self.assertEqual(operations[4]["related"]["Deal"],
+                         "the new deal created by op4")
+        self.assertEqual(operations[5]["fields"]["Amount"], "20")
+        self.assertEqual(operations[5]["fields"]["Currency"], "USD")
+        self.assertEqual(operations[5]["related"]["Deal"],
+                         "the new deal created by op4")
+
+        result = self.approve(body["payload"]["operation_id"], thread="nestle-complete")
+        self.assertEqual(result["execution"]["status"], "success", result)
+
+        company = Company.objects.get(full_name="Nestle Pakistan")
+        self.assertEqual(company.country, self.country)
+        lead = Lead.objects.get(email="robert@example.com")
+        contact = Contact.objects.get(email="hamza@example.com")
+        request = Request.objects.get(request_for="Nestle Marketing Automation")
+        deal = Deal.objects.get(request=request)
+        payment = Payment.objects.get(deal=deal)
+        self.assertEqual(lead.company, company)
+        self.assertEqual(contact.company, company)
+        self.assertEqual(request.contact, contact)
+        self.assertEqual(request.company, company)
+        self.assertEqual((deal.contact, deal.company), (contact, company))
+        self.assertEqual(
+            (deal.amount, deal.currency.name, deal.probability, deal.stage.name),
+            (7500, "USD", 85, "commercial offer"))
+        self.assertEqual((payment.deal, payment.amount, payment.currency.name),
+                         (deal, 20, "USD"))
+
+    def test_rejecting_complete_customer_deal_plan_writes_no_crm_records(self):
+        before = self.crm_counts()
+        body = self.submit_nestle_plan("nestle-reject")
+        self.assertEqual(body["status"], "pending_approval", body)
+        self.assertEqual(self.crm_counts(), before)
+
+        response = self.client.post("/api/ai/approve/", {
+            "thread_id": "nestle-reject",
+            "decision": "rejected",
+            "operation_id": body["payload"]["operation_id"],
+        }, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(self.crm_counts(), before)
+        self.assertEqual(
+            ActionRequest.objects.get(
+                operation_id=body["payload"]["operation_id"]).status,
+            ActionRequest.REJECTED)
 
 
 # ---------------------------------------------------------------------------

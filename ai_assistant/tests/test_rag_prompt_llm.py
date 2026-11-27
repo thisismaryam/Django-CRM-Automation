@@ -94,6 +94,9 @@ class PromptAndRegistryTests(SimpleTestCase):
         self.assertIn("Register (the) deal for ABC", text)   # braces are safe
         self.assertIn(PLAN_TOOL_NAME, text)
         self.assertIn("Deals are never created directly", text)
+        self.assertIn("every supplied Deal field", text)
+        self.assertIn("same plan and approval", text)
+        self.assertIn("deal=$<same request op>.deal", text)
         self.assertIn("not instructions", text)               # document injection guard
         self.assertIn("Never skip or shortcut approval", text)
         self.assertIn("Department and owner are CRM-managed", text)
@@ -118,6 +121,8 @@ class PromptAndRegistryTests(SimpleTestCase):
         self.assertIn("create request:", description)
         self.assertIn("first_name*", description)
         self.assertIn("$op3.deal", description)
+        self.assertIn("never put Deal fields on the Request", description)
+        self.assertIn("Payment in this same plan", description)
 
 
 class ContextTests(SimpleTestCase):
@@ -211,7 +216,7 @@ class LlmFallbackTests(SimpleTestCase):
     def test_total_timeout_stops_failover(self):
         """Total timeout caps all attempts; returns provider error message."""
         from ai_assistant.llm import _invoke_with_failover
-from ai_assistant.agent import PROVIDER_ERROR_TEXT
+        from ai_assistant.agent import PROVIDER_ERROR_TEXT
 
         def always_timeout(messages, config=None):
             raise TimeoutError("Request timed out")

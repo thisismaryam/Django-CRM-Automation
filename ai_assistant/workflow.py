@@ -186,6 +186,14 @@ RECORD_LINKS: dict[tuple[str, str], Any] = {
     ("payment", "deal"): Deal,
 }
 
+# Fields searched when a link field is given a name/email instead of an id.
+_NAME_LOOKUPS: dict[Any, list[str]] = {
+    Company: ["full_name", "email"],
+    Contact: ["last_name", "first_name", "email"],
+    Lead: ["last_name", "first_name", "email", "company_name"],
+    Deal: ["name", "ticket"],
+}
+
 # Choice-like foreign keys / many-to-many fields resolvable by name.
 LOOKUP_FIELDS = {
     "country", "lead_source", "type", "industry", "products", "stage",
@@ -626,15 +634,45 @@ class _PlanValidator:
                     f"{target_model._meta.verbose_name}.")
             return text
         if not text.isdigit():
-            raise PlanError(
-                f"{name}: use the existing {target_model._meta.verbose_name} id "
-                "from a search, or a $opN reference.")
+            # A weak model often passes a name ("ERP rollout") instead of an
+            # id. Resolve it here, inside the user's permission scope, so the
+            # request does not cost another LLM round trip just to search.
+            return self._resolve_link_by_name(target_model, name, text)
         obj = self.access.get_visible(target_model, text)
         if obj is None:
             raise PlanError(
                 f"{name}: {target_model._meta.verbose_name} #{text} does not "
                 "exist or is not accessible to you.")
         return obj.pk
+
+    def _resolve_link_by_name(self, target_model, field: str, text: str) -> int:
+        """Resolve a unique, visible record from a name/email. Never guesses:
+        zero or several matches are reported back with ids."""
+        label = target_model._meta.verbose_name
+        search_fields = _NAME_LOOKUPS.get(target_model)
+        if not search_fields:
+            raise PlanError(
+                f"{field}: use the existing {label} id from a search, or a "
+                "$opN reference.")
+        base = self.access.queryset(target_model)
+
+        def matches(lookup: str):
+            query = Q()
+            for search_field in search_fields:
+                query |= Q(**{f"{search_field}__{lookup}": text})
+            return list(base.filter(query).distinct()[:6])
+
+        found = matches("iexact") or matches("icontains")
+        if len(found) == 1:
+            return found[0].pk
+        if not found:
+            raise PlanError(
+                f"{field}: no {label} matching {text!r} is accessible to you. "
+                f"Search for it, or create it earlier in this plan ($opN).")
+        options = "; ".join(f"#{obj.pk} {obj}" for obj in found[:5])
+        raise PlanError(
+            f"{field}: {text!r} matches several {label} records ({options}). "
+            "Ask the user which one, then use its id.")
 
     # -- business rules and inferred values ---------------------------
 
@@ -791,9 +829,12 @@ class _PlanValidator:
 
         if not deal_department_id:
             op.errors.append(
-                "a sales department could not be inferred for this deal. Link a "
-                "counterparty assigned to a sales department or process the request "
-                "as a member of one.")
+                "a sales department could not be determined for this deal: the "
+                "signed-in account belongs to no department and the linked "
+                "record is new in this plan or has no department. Do NOT retry "
+                "or ask the user for more details. Tell the user to either link "
+                "an existing record that already belongs to a sales department "
+                "or sign in with an account that belongs to a department group.")
             return
         if not deal_owner:
             op.errors.append(
