@@ -67,10 +67,11 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             "GROQ_MODELS", "qwen/qwen3-27b,openai/gpt-oss-120b").split(",")
             if m.strip()]
         for model_name in groq_models:
-            model = ChatGroq(
+            chat_model = ChatGroq(
                 model=model_name, api_key=groq_key, temperature=0,
                 max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
-            ).bind_tools(tools, parallel_tool_calls=False)
+            )
+            model = chat_model.bind_tools(tools, parallel_tool_calls=False) if tools else chat_model
             models.append(("groq", model))
 
     # Gemini: gemini-1.5-flash (primary), gemini-2.0-flash (fallback)
@@ -83,11 +84,12 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             "GEMINI_MODELS", "gemini-1.5-flash,gemini-2.0-flash").split(",")
             if m.strip()]
         for model_name in gemini_models:
-            model = ChatGoogleGenerativeAI(
+            chat_model = ChatGoogleGenerativeAI(
                 model=model_name, api_key=gemini_key, temperature=0,
                 max_tokens=max_tokens, retries=0,
                 timeout=timeout_s,
-            ).bind_tools(tools)
+            )
+            model = chat_model.bind_tools(tools) if tools else chat_model
             models.append(("gemini", model))
 
     # Cloudflare Workers AI: verified free models with tool calling support
@@ -104,12 +106,13 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             "@cf/qwen/qwen3-27b,@cf/google/gemma-4-26b-a4b-it,@cf/zai-org/glm-4.7-flash"
         ).split(",") if m.strip()]
         for model_name in cf_models:
-            model = ChatOpenAI(
+            chat_model = ChatOpenAI(
                 model=model_name, api_key=cf_key,
                 base_url=("https://api.cloudflare.com/client/v4/accounts/"
                           f"{cf_account}/ai/v1"),
                 temperature=0, max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
-            ).bind_tools(tools, parallel_tool_calls=False)
+            )
+            model = chat_model.bind_tools(tools, parallel_tool_calls=False) if tools else chat_model
             models.append(("cloudflare", model))
 
     # OpenRouter: verified free models with tool calling / agentic capabilities
@@ -130,11 +133,12 @@ def _configured_models(tools: list) -> list[tuple[str, Runnable]]:
             "baidu/ernie-5.5-flash-preview:free"
         ).split(",") if m.strip()]
         for model_name in or_models:
-            model = ChatOpenAI(
+            chat_model = ChatOpenAI(
                 model=model_name, api_key=openrouter_key,
                 base_url="https://openrouter.ai/api/v1",
                 temperature=0, max_tokens=max_tokens, timeout=timeout_s, max_retries=0,
-            ).bind_tools(tools, parallel_tool_calls=False)
+            )
+            model = chat_model.bind_tools(tools, parallel_tool_calls=False) if tools else chat_model
             models.append(("openrouter", model))
 
     # Provider failover order (can be overridden via LLM_PROVIDER_ORDER)
@@ -210,6 +214,19 @@ def _error_category(exc: Exception) -> str:
     return "other"
 
 
+_REJECTED_STATUSES = {400, 413, 422}
+
+
+def _log_provider_error_body(name: str, exc: Exception) -> None:
+    """Opt-in: log the provider's own error text for rejected requests.
+
+    Off by default because it can echo CRM data (for example a failed tool
+    call). Set AI_ASSISTANT_LOG_PROVIDER_ERRORS=1 in a development session."""
+    if os.getenv("AI_ASSISTANT_LOG_PROVIDER_ERRORS") != "1":
+        return
+    logger.warning("LLM provider %s error detail: %s", name, str(exc)[:1500])
+
+
 def _cooldown_seconds(exc: Exception) -> int:
     status = _status_code(exc)
     message = str(exc).lower()
@@ -231,6 +248,33 @@ def _cooldown_seconds(exc: Exception) -> int:
         return default
 
 
+def _model_name(model) -> str:
+    inner = getattr(model, "bound", model)
+    for attr in ("model_name", "model"):
+        val = getattr(inner, attr, None)
+        if val:
+            return str(val)
+    return "unknown"
+
+
+def _extract_token_usage(result) -> dict[str, int]:
+    inp, out, tot = 0, 0, 0
+    usage = getattr(result, "usage_metadata", None)
+    if isinstance(usage, dict):
+        inp = int(usage.get("input_tokens") or 0)
+        out = int(usage.get("output_tokens") or 0)
+        tot = int(usage.get("total_tokens") or (inp + out))
+    else:
+        meta = getattr(result, "response_metadata", {})
+        if isinstance(meta, dict):
+            token_usage = meta.get("token_usage") or meta.get("usage") or {}
+            if isinstance(token_usage, dict):
+                inp = int(token_usage.get("prompt_tokens") or token_usage.get("input_tokens") or 0)
+                out = int(token_usage.get("completion_tokens") or token_usage.get("output_tokens") or 0)
+                tot = int(token_usage.get("total_tokens") or (inp + out))
+    return {"input_tokens": inp, "output_tokens": out, "total_tokens": tot}
+
+
 def _invoke_with_failover(providers, messages, config=None):
     if not providers:
         raise RuntimeError(
@@ -241,86 +285,115 @@ def _invoke_with_failover(providers, messages, config=None):
 
     messages = _portable_messages(messages)
     failures = []
+    # Models that rejected THIS request outright (HTTP 400/413/422).
+    rejected: set[int] = set()
+    tried: set[int] = set()
 
     while True:
         now = time.monotonic()
-        elapsed = now - start_time
-        if elapsed >= total_timeout:
+        if now - start_time >= total_timeout:
             logger.warning("Total LLM timeout exceeded (%ds); giving up", total_timeout)
-            raise RuntimeError("All configured LLM providers failed (total timeout).")
+            from ai_assistant.agent import PROVIDER_ERROR_TEXT
+            return AIMessage(content=PROVIDER_ERROR_TEXT)
+
+        # Remaining candidates that haven't been tried for this request
+        candidates = [(n, m) for n, m in providers
+                      if id(m) not in tried and id(m) not in rejected]
+        if not candidates:
+            break
 
         with _backoff_lock:
-            ready = [(name, model) for name, model in providers
-                     if _provider_backoff_until.get(name, 0) <= now]
-            open_names = {name for name, _model in providers
-                          if _provider_backoff_until.get(name, 0) > now}
+            ready = [(n, m) for n, m in candidates
+                     if _provider_backoff_until.get(n, 0) <= now]
 
-        # When every circuit is open, probe the provider closest to recovery.
         if ready:
-            attempts = ready
-            skipped_names = open_names
+            name, model = ready[0]
         else:
             with _backoff_lock:
-                attempts = [min(providers, key=lambda item:
-                                _provider_backoff_until.get(item[0], 0))]
-            skipped_names = open_names - {attempts[0][0]}
-        for skipped_name in sorted(skipped_names):
-            logger.info("LLM provider %s temporarily skipped; circuit is open",
-                        skipped_name)
+                name, model = min(candidates, key=lambda item:
+                                  _provider_backoff_until.get(item[0], 0))
 
-        cooling: set[str] = set()
-        for name, model in attempts:
-            # Check total timeout before each attempt
-            if time.monotonic() - start_time >= total_timeout:
-                logger.warning("Total LLM timeout exceeded (%ds) before attempting %s", total_timeout, name)
-                raise RuntimeError("All configured LLM providers failed (total timeout).")
+        tried.add(id(model))
+        model_lbl = _model_name(model)
+        logger.info("Attempting LLM provider %s (model: %s)", name, model_lbl)
 
-            if name in cooling:
-                # Models of one provider share its quota: after a rate-limit or
-                # outage, the sibling model would fail the same way.
-                logger.info("LLM provider %s skipped for this request after a failure", name)
-                continue
-            logger.info("Attempting LLM provider %s", name)
-            try:
-                result = (model.invoke(messages, config=config) if config is not None
-                          else model.invoke(messages))
-            except Exception as exc:
-                failures.append(exc)
-                category = _error_category(exc)
-                # Treat timeout as "unavailable" for circuit breaker
-                if isinstance(exc, TimeoutError) or "timeout" in str(exc).lower() or "timed out" in str(exc).lower():
-                    category = "unavailable"
-                cooldown = _cooldown_seconds(exc)
-                if cooldown:
-                    cooling.add(name)
-                    with _backoff_lock:
-                        _provider_backoff_until[name] = time.monotonic() + cooldown
-                logger.warning(
-                    "LLM provider %s failed (category: %s, error type: %s, HTTP status: %s); "
-                    "trying next provider",
-                    name, category, type(exc).__name__, _status_code(exc))
-                continue
-            with _backoff_lock:
-                _provider_backoff_until.pop(name, None)
-            logger.info("LLM provider %s successfully generated a response", name)
-            if failures:
-                logger.info("LLM request handled by provider %s after failover", name)
-            return result
+        try:
+            result = (model.invoke(messages, config=config) if config is not None
+                      else model.invoke(messages))
+        except Exception as exc:
+            failures.append(exc)
+            category = _error_category(exc)
+            if isinstance(exc, TimeoutError) or "timeout" in str(exc).lower() or "timed out" in str(exc).lower():
+                category = "unavailable"
+            cooldown = _cooldown_seconds(exc)
+            if _status_code(exc) in _REJECTED_STATUSES:
+                rejected.add(id(model))
+            _log_provider_error_body(name, exc)
+            if cooldown:
+                with _backoff_lock:
+                    _provider_backoff_until[name] = time.monotonic() + cooldown
+            logger.warning(
+                "LLM provider %s (model: %s) failed (category: %s, error type: %s, HTTP status: %s, reason: %s); "
+                "trying next provider",
+                name, model_lbl, category, type(exc).__name__, _status_code(exc), str(exc)[:250])
+            continue
 
-        # All ready attempts failed; loop to check for newly-ready providers
-        # or total timeout on next iteration
+        with _backoff_lock:
+            _provider_backoff_until.pop(name, None)
+        usage = _extract_token_usage(result)
+        logger.info(
+            "LLM call handled successfully by provider %s (model: %s). "
+            "Tokens consumed: %d input, %d output, %d total.",
+            name, model_lbl, usage["input_tokens"], usage["output_tokens"], usage["total_tokens"]
+        )
+        if failures:
+            logger.info("LLM request handled by provider %s (model: %s) after %d failover attempt(s)",
+                        name, model_lbl, len(failures))
+        return result
 
-    # Should not reach here
+    # When all candidates have been attempted
+    if rejected and len(rejected) == len(providers):
+        logger.warning("Every LLM provider rejected this request; not retrying")
+        raise RuntimeError("All configured LLM providers rejected the request.") from (
+            failures[-1] if failures else None)
+
+    if failures and all(
+        isinstance(f, TimeoutError) or "timed out" in str(f).lower() for f in failures
+    ):
+        logger.warning("All configured LLM providers timed out; returning provider error")
+        from ai_assistant.agent import PROVIDER_ERROR_TEXT
+        return AIMessage(content=PROVIDER_ERROR_TEXT)
+
     raise RuntimeError(
         f"All configured LLM providers failed ({len(failures)} attempted).") from (
             failures[-1] if failures else None)
 
 
-@lru_cache(maxsize=1)
-def get_llm() -> Runnable:
-    """Return a lazy manager so configuration changes take effect on restart."""
-    from ai_assistant.tools import tools
+_llm_cache: dict[tuple[str, ...], Runnable] = {}
+_llm_cache_lock = threading.Lock()
 
-    providers = _configured_models(tools)
-    return RunnableLambda(lambda messages, config: _invoke_with_failover(
-        providers, messages, config))
+
+def get_llm(tools: list | tuple | None = None) -> Runnable:
+    """Return a lazy manager so configuration changes take effect on restart."""
+    if tools is None:
+        from ai_assistant.tools import tools as default_tools
+        tools = default_tools
+    tools_list = list(tools)
+    key = tuple(getattr(t, "name", str(t)) for t in tools_list)
+    with _llm_cache_lock:
+        if key not in _llm_cache:
+            providers = _configured_models(tools_list)
+            _llm_cache[key] = RunnableLambda(
+                lambda messages, config=None, p=providers: _invoke_with_failover(
+                    p, messages, config))
+        return _llm_cache[key]
+
+
+def clear_llm_cache():
+    with _backoff_lock:
+        _provider_backoff_until.clear()
+    with _llm_cache_lock:
+        _llm_cache.clear()
+
+
+get_llm.cache_clear = clear_llm_cache

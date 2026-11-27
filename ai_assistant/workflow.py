@@ -83,7 +83,11 @@ _REF_RE = re.compile(r"^\$(?P<op>[A-Za-z0-9_-]{1,20})(?:\.(?P<attr>deal))?$")
 
 class FieldValue(BaseModel):
     name: str = Field(description="CRM field name, e.g. first_name")
-    value: str = Field(description="Value as text. Record links: an existing id "
+    # The JSON schema sent to the providers must accept numbers and booleans:
+    # Groq, OpenRouter and Cloudflare validate the model's tool call against it
+    # server-side and answer HTTP 400 when e.g. amount is sent as 12500. The
+    # validator below turns every value into text before the CRM sees it.
+    value: str | float | bool = Field(description="Value as text. Record links: an existing id "
                        "(e.g. 12) or a reference to an earlier operation "
                        "($op1, or $op2.deal for the deal created by request op2).")
 
@@ -98,7 +102,7 @@ class OperationSpec(BaseModel):
     op_id: str = Field(description="Short unique id, e.g. op1")
     action: Literal["create", "update"]
     record_type: Literal["lead", "company", "contact", "request", "deal", "payment"]
-    record_id: str = Field(default="", description="update only: id of the existing "
+    record_id: str | int = Field(default="", description="update only: id of the existing "
                            "record, or $opN.deal for a deal created in this plan")
     fields: list[FieldValue] = Field(default_factory=list)
     create_deal: bool = Field(default=False, description="request only: process the "
@@ -589,8 +593,16 @@ class _PlanValidator:
             if not access.user.has_perm("crm.change_deal"):
                 raise PermissionDenied("you are not allowed to change deals")
             op.target_ref = ref
-            department_id = access.home_department_id
+            # The deal will belong to the department its request op resolved
+            # (a superuser has none of their own); fall back to the user's.
+            planned_department = target.data.get("department")
+            department_id = (int(planned_department) if planned_department
+                             else access.home_department_id)
             owner = access.user
+            planned_owner = target.data.get("owner")
+            if planned_owner:
+                # Owner and department must belong together (Deal.clean).
+                owner = type(access.user).objects.filter(pk=planned_owner).first() or owner
             return Deal(
                 department_id=department_id, owner=owner,
                 stage=Stage.objects.filter(department_id=department_id,
@@ -1010,12 +1022,22 @@ class _PlanValidator:
             **{n: "" if v is None else str(v)
                for n, v in op.links.items() if not isinstance(v, str)},
         }
+        # A deal planned in this same plan does not exist yet, so the CRM's
+        # stage/closing-reason choices (which follow the active department for
+        # a superuser) would be empty. Build the form for the deal's planned
+        # department instead; restored right after.
+        previous_department = getattr(access.user, "department_id", None)
+        planned_department = instance.department_id if op.target_ref else None
+        if planned_department and not previous_department:
+            access.user.department_id = planned_department
         try:
             form_class = access.admin_for(model).get_form(request, existing, fields=fields)
         except (Currency.DoesNotExist, Department.DoesNotExist):
             op.errors.append("your department has no default currency configured; "
                              "ask an administrator.")
             return
+        finally:
+            access.user.department_id = previous_department
         read_only = [n for n in fields if n not in form_class.base_fields]
         if read_only:
             op.errors.append("these fields are read-only for you: " + ", ".join(read_only))
